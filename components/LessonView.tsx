@@ -223,34 +223,37 @@ export const LessonView: React.FC<LessonViewProps> = ({
                         value={editData.title}
                         onChange={(e) => setEditData({...editData, title: e.target.value})}
                         className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                        placeholder="Название урока"
                     />
                 </div>
 
                 <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Описание (Подзаголовок)</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Описание (Видно в списке уроков)</label>
                     <input 
                         value={editData.description}
                         onChange={(e) => setEditData({...editData, description: e.target.value})}
                         className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                        placeholder="Краткое описание сути урока..."
                     />
                 </div>
 
                 <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Задание (Homework Task)</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Текст Задания (Виден студенту)</label>
                     <textarea 
                         value={editData.homeworkTask}
                         onChange={(e) => setEditData({...editData, homeworkTask: e.target.value})}
                         className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3] h-24 resize-none"
+                        placeholder="Напишите, что конкретно нужно сделать студенту..."
                     />
                 </div>
 
                 <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Инструкция для AI (Grading)</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Критерии проверки AI (Промпт)</label>
                     <textarea 
                         value={editData.aiGradingInstruction}
                         onChange={(e) => setEditData({...editData, aiGradingInstruction: e.target.value})}
                         className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3] h-32 resize-none font-mono text-xs"
-                        placeholder="Критерии проверки..."
+                        placeholder="Инструкция для ИИ: 'Проверь, чтобы на фото был конспект... Если текст бессмысленный - отклони...'"
                     />
                 </div>
             </div>

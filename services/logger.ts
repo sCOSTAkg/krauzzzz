@@ -38,6 +38,12 @@ class LoggerService {
   getLogs() {
     return this.logs;
   }
+
+  clear() {
+      this.logs = [];
+      console.clear();
+      console.log('%cSystem Logs Cleared', 'color: #00B050; font-weight: bold; font-size: 12px;');
+  }
 }
 
 export const Logger = new LoggerService();

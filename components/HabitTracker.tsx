@@ -20,42 +20,127 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
     habits, goals, onUpdateHabits, onUpdateGoals, onXPEarned, onBack, setNavAction 
 }) => {
     const [activeTab, setActiveTab] = useState<TabType>('HABITS');
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     
-    // Add Form State
-    const [newTitle, setNewTitle] = useState('');
-    const [newGoalTarget, setNewGoalTarget] = useState('');
-    const [newGoalUnit, setNewGoalUnit] = useState('₽');
+    // --- EDIT STATE ---
+    const [editingId, setEditingId] = useState<string | null>(null);
+    
+    // --- FORM STATE ---
+    const [formTitle, setFormTitle] = useState('');
+    const [formDescription, setFormDescription] = useState('');
+    const [formIcon, setFormIcon] = useState('🔥');
+    
+    // Goal Specific
+    const [formTarget, setFormTarget] = useState('');
+    const [formUnit, setFormUnit] = useState('₽');
 
     const today = new Date().toISOString().split('T')[0];
+
+    // --- ICONS SELECTOR ---
+    const AVAILABLE_ICONS = ['🔥', '💧', '💪', '📚', '🧘', '💰', '🧠', '🥦', '🏃', '💤'];
 
     // --- SMART NAV INTEGRATION ---
     useEffect(() => {
         if (!setNavAction) return;
 
-        if (isAddModalOpen) {
+        if (isModalOpen) {
             setNavAction({
-                label: 'СОЗДАТЬ',
-                onClick: activeTab === 'HABITS' ? addHabit : addGoal,
+                label: editingId ? 'СОХРАНИТЬ' : 'СОЗДАТЬ',
+                onClick: handleSave,
                 variant: 'success',
-                icon: '✨'
+                icon: '💾'
             });
         } else {
             setNavAction({
                 label: activeTab === 'HABITS' ? 'НОВАЯ ПРИВЫЧКА' : 'НОВАЯ ЦЕЛЬ',
-                onClick: () => { 
-                    setIsAddModalOpen(true); 
-                    telegram.haptic('selection'); 
-                },
+                onClick: () => openModal(),
                 variant: 'primary',
                 icon: '+'
             });
         }
 
         return () => { setNavAction(null); };
-    }, [activeTab, isAddModalOpen, newTitle, newGoalTarget, newGoalUnit]); // Dependencies important for closure capture in add functions
+    }, [activeTab, isModalOpen, formTitle, formTarget, formUnit, formIcon, formDescription, editingId]);
 
-    // --- HABIT LOGIC ---
+    // --- LOGIC ---
+
+    const openModal = (item?: Habit | Goal) => {
+        if (item) {
+            // Edit Mode
+            setEditingId(item.id);
+            setFormTitle(item.title);
+            if ('description' in item) setFormDescription(item.description || '');
+            if ('icon' in item) setFormIcon(item.icon);
+            if ('targetValue' in item) setFormTarget(item.targetValue.toString());
+            if ('unit' in item) setFormUnit(item.unit);
+        } else {
+            // Create Mode
+            setEditingId(null);
+            setFormTitle('');
+            setFormDescription('');
+            setFormIcon('🔥');
+            setFormTarget('');
+            setFormUnit('₽');
+        }
+        setIsModalOpen(true);
+        telegram.haptic('selection');
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingId(null);
+    };
+
+    const handleSave = () => {
+        if (!formTitle.trim()) {
+            telegram.haptic('error');
+            return;
+        }
+
+        if (activeTab === 'HABITS') {
+            if (editingId) {
+                // Update Habit
+                const updated = habits.map(h => h.id === editingId ? { ...h, title: formTitle, description: formDescription, icon: formIcon } : h);
+                onUpdateHabits(updated);
+            } else {
+                // Create Habit
+                const newHabit: Habit = {
+                    id: Date.now().toString(),
+                    title: formTitle,
+                    description: formDescription,
+                    streak: 0,
+                    completedDates: [],
+                    targetDaysPerWeek: 7,
+                    icon: formIcon
+                };
+                onUpdateHabits([...habits, newHabit]);
+            }
+        } else {
+            // Goals
+            if (!formTarget) { telegram.haptic('error'); return; }
+            
+            if (editingId) {
+                // Update Goal
+                const updated = goals.map(g => g.id === editingId ? { ...g, title: formTitle, targetValue: parseFloat(formTarget), unit: formUnit } : g);
+                onUpdateGoals(updated);
+            } else {
+                // Create Goal
+                const newGoal: Goal = {
+                    id: Date.now().toString(),
+                    title: formTitle,
+                    currentValue: 0,
+                    targetValue: parseFloat(formTarget),
+                    unit: formUnit,
+                    isCompleted: false,
+                    colorStart: '#6C5DD3',
+                    colorEnd: '#FFAB7B'
+                };
+                onUpdateGoals([...goals, newGoal]);
+            }
+        }
+        closeModal();
+        telegram.haptic('success');
+    };
 
     const toggleHabit = (habitId: string, date: string) => {
         telegram.haptic('selection');
@@ -66,7 +151,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                     ? h.completedDates.filter(d => d !== date)
                     : [...h.completedDates, date];
                 
-                // Streak Calc
+                // Recalculate Streak
                 newDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
                 let streak = 0;
                 let checkDate = new Date();
@@ -96,49 +181,15 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
         onUpdateHabits(updated);
     };
 
-    const addHabit = () => {
-        if (!newTitle.trim()) {
-            telegram.haptic('error');
-            return;
-        }
-        const newHabit: Habit = {
-            id: Date.now().toString(),
-            title: newTitle,
-            streak: 0,
-            completedDates: [],
-            targetDaysPerWeek: 7,
-            icon: '🔥'
-        };
-        onUpdateHabits([...habits, newHabit]);
-        closeModal();
-    };
-
-    const deleteHabit = (id: string) => {
-        if(confirm('Удалить привычку?')) {
-            onUpdateHabits(habits.filter(h => h.id !== id));
+    const deleteItem = (id: string) => {
+        if(confirm('Удалить элемент?')) {
+            if (activeTab === 'HABITS') {
+                onUpdateHabits(habits.filter(h => h.id !== id));
+            } else {
+                onUpdateGoals(goals.filter(g => g.id !== id));
+            }
             telegram.haptic('warning');
         }
-    };
-
-    // --- GOAL LOGIC ---
-
-    const addGoal = () => {
-        if (!newTitle.trim() || !newGoalTarget) {
-            telegram.haptic('error');
-            return;
-        }
-        const newGoal: Goal = {
-            id: Date.now().toString(),
-            title: newTitle,
-            currentValue: 0,
-            targetValue: parseFloat(newGoalTarget),
-            unit: newGoalUnit,
-            isCompleted: false,
-            colorStart: '#6C5DD3',
-            colorEnd: '#FFAB7B'
-        };
-        onUpdateGoals([...goals, newGoal]);
-        closeModal();
     };
 
     const updateGoalProgress = (id: string, amount: number) => {
@@ -163,21 +214,6 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
             return g;
         });
         onUpdateGoals(updated);
-    };
-
-    const deleteGoal = (id: string) => {
-        if(confirm('Удалить цель?')) {
-            onUpdateGoals(goals.filter(g => g.id !== id));
-            telegram.haptic('warning');
-        }
-    };
-
-    // --- SHARED ---
-    const closeModal = () => {
-        setNewTitle('');
-        setNewGoalTarget('');
-        setIsAddModalOpen(false);
-        telegram.haptic('medium');
     };
 
     // Calendar Days Generator
@@ -213,29 +249,27 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                         Цели
                     </button>
                 </div>
-                <div className="w-10"></div> {/* Spacer for symmetry */}
+                <div className="w-10"></div> 
             </div>
 
-            <div className="p-6 space-y-6 pb-32 overflow-y-auto">
+            <div className="p-4 pb-32 overflow-y-auto space-y-4">
                 {/* --- HABITS VIEW --- */}
                 {activeTab === 'HABITS' && (
-                    <div className="space-y-4 animate-slide-up">
-                        {/* Weekly Calendar Header */}
-                        <div className="bg-[#1F2128] p-4 rounded-[2rem] border border-white/5 mb-4">
-                            <div className="flex justify-between">
-                                {calendarDays.map((d, i) => {
-                                    const iso = d.toISOString().split('T')[0];
-                                    const isToday = iso === today;
-                                    return (
-                                        <div key={i} className={`flex flex-col items-center gap-2 ${isToday ? 'scale-110' : 'opacity-40'}`}>
-                                            <span className="text-[8px] font-bold uppercase tracking-wider">{['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d.getDay()]}</span>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border ${isToday ? 'bg-white text-black border-white' : 'border-white/20'}`}>
-                                                {d.getDate()}
-                                            </div>
+                    <div className="space-y-3 animate-slide-up">
+                        {/* Compact Calendar Header */}
+                        <div className="bg-[#1F2128] px-2 py-3 rounded-2xl border border-white/5 flex justify-between">
+                            {calendarDays.map((d, i) => {
+                                const iso = d.toISOString().split('T')[0];
+                                const isToday = iso === today;
+                                return (
+                                    <div key={i} className={`flex flex-col items-center gap-1 ${isToday ? 'opacity-100' : 'opacity-40'}`}>
+                                        <span className="text-[8px] font-bold uppercase">{['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][d.getDay()]}</span>
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border ${isToday ? 'bg-white text-black border-white' : 'border-white/20'}`}>
+                                            {d.getDate()}
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {habits.length === 0 && (
@@ -245,57 +279,58 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                             </div>
                         )}
 
-                        {habits.map((habit) => {
-                            return (
-                                <div key={habit.id} className="bg-[#1F2128] border border-white/5 rounded-[2rem] p-5 relative overflow-hidden group">
-                                    <div className="flex justify-between items-start mb-4 relative z-10">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-[#2C2F36] flex items-center justify-center text-xl shadow-inner">
-                                                {habit.icon}
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-sm text-white">{habit.title}</h3>
-                                                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide">
-                                                    <span className={`${habit.streak > 0 ? 'text-orange-500 animate-pulse' : 'text-white/30'}`}>🔥</span> 
-                                                    <span className="text-white/60">{habit.streak} дней</span>
-                                                </div>
-                                            </div>
+                        {habits.map((habit) => (
+                            <div key={habit.id} className="bg-[#1F2128] border border-white/5 rounded-2xl p-3 relative group">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-3 flex-1" onClick={() => openModal(habit)}>
+                                        <div className="w-8 h-8 rounded-lg bg-[#2C2F36] flex items-center justify-center text-base shadow-inner">
+                                            {habit.icon}
                                         </div>
-                                        <button onClick={() => deleteHabit(habit.id)} className="text-white/10 hover:text-red-500 transition-colors">✕</button>
+                                        <div>
+                                            <h3 className="font-bold text-xs text-white leading-tight">{habit.title}</h3>
+                                            {habit.description && <p className="text-[9px] text-white/40 line-clamp-1">{habit.description}</p>}
+                                        </div>
                                     </div>
-
-                                    {/* Interaction Row */}
-                                    <div className="flex justify-between items-center bg-black/20 rounded-xl p-2 relative z-10">
-                                        {calendarDays.map((d, i) => {
-                                            const iso = d.toISOString().split('T')[0];
-                                            const isDone = habit.completedDates.includes(iso);
-                                            const isFuture = d > new Date();
-                                            
-                                            if (iso === today) {
-                                                return (
-                                                    <button 
-                                                        key={i}
-                                                        onClick={() => toggleHabit(habit.id, today)}
-                                                        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-[#00B050] text-white' : 'bg-white/10 hover:bg-white/20 border border-white/10'}`}
-                                                    >
-                                                        {isDone ? '✓' : ''}
-                                                    </button>
-                                                );
-                                            }
-                                            return (
-                                                <div key={i} className={`w-2 h-2 rounded-full ${isFuture ? 'bg-white/5' : isDone ? 'bg-[#00B050]' : 'bg-red-500/20'}`}></div>
-                                            );
-                                        })}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide bg-black/20 px-2 py-1 rounded-lg">
+                                            <span className={`${habit.streak > 0 ? 'text-orange-500' : 'text-white/30'}`}>🔥</span> 
+                                            <span className="text-white/60">{habit.streak}</span>
+                                        </div>
+                                        <button onClick={() => deleteItem(habit.id)} className="text-white/10 hover:text-red-500 px-1">✕</button>
                                     </div>
                                 </div>
-                            );
-                        })}
+
+                                {/* Interaction Row */}
+                                <div className="flex justify-between items-center bg-black/20 rounded-xl p-1.5">
+                                    {calendarDays.map((d, i) => {
+                                        const iso = d.toISOString().split('T')[0];
+                                        const isDone = habit.completedDates.includes(iso);
+                                        const isFuture = d > new Date();
+                                        
+                                        if (iso === today) {
+                                            return (
+                                                <button 
+                                                    key={i}
+                                                    onClick={() => toggleHabit(habit.id, today)}
+                                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-lg ${isDone ? 'bg-[#00B050] text-white' : 'bg-white/10 hover:bg-white/20 border border-white/10'}`}
+                                                >
+                                                    {isDone ? '✓' : ''}
+                                                </button>
+                                            );
+                                        }
+                                        return (
+                                            <div key={i} className={`w-1.5 h-1.5 rounded-full mx-auto ${isFuture ? 'bg-white/5' : isDone ? 'bg-[#00B050]' : 'bg-red-500/20'}`}></div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
                 {/* --- GOALS VIEW --- */}
                 {activeTab === 'GOALS' && (
-                    <div className="space-y-4 animate-slide-up">
+                    <div className="space-y-3 animate-slide-up">
                         {goals.length === 0 && (
                             <div className="text-center py-20 opacity-30">
                                 <span className="text-4xl block mb-2">🎯</span>
@@ -308,9 +343,9 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                             const step = goal.targetValue > 1000 ? 100 : goal.targetValue > 100 ? 10 : 1;
 
                             return (
-                                <div key={goal.id} className="bg-[#1F2128] border border-white/5 rounded-[2rem] p-6 relative overflow-hidden">
+                                <div key={goal.id} className="bg-[#1F2128] border border-white/5 rounded-2xl p-4 relative overflow-hidden">
                                     {/* Progress Background */}
-                                    <div className="absolute bottom-0 left-0 h-1.5 w-full bg-white/5">
+                                    <div className="absolute bottom-0 left-0 h-1 w-full bg-white/5">
                                         <div 
                                             className="h-full transition-all duration-1000 ease-out"
                                             style={{ 
@@ -320,47 +355,42 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                                         ></div>
                                     </div>
 
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <h3 className="font-black text-lg text-white">{goal.title}</h3>
-                                                {goal.isCompleted && <span className="text-lg animate-bounce">🏆</span>}
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div onClick={() => openModal(goal)} className="cursor-pointer">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <h3 className="font-black text-sm text-white">{goal.title}</h3>
+                                                {goal.isCompleted && <span className="text-sm animate-bounce">🏆</span>}
                                             </div>
-                                            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">
                                                 {goal.currentValue.toLocaleString()} / {goal.targetValue.toLocaleString()} {goal.unit}
                                             </p>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-2xl font-black text-white">{percent}%</span>
+                                        <div className="text-right flex flex-col items-end">
+                                            <span className="text-lg font-black text-white">{percent}%</span>
+                                            <button onClick={() => deleteItem(goal.id)} className="text-white/10 hover:text-red-500 text-xs mt-1">✕</button>
                                         </div>
                                     </div>
 
                                     {/* Controls */}
                                     {!goal.isCompleted && (
-                                        <div className="flex gap-2 mt-4">
+                                        <div className="flex gap-2">
                                             <button 
                                                 onClick={() => updateGoalProgress(goal.id, step)}
-                                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black border border-white/5 active:scale-95 transition-all"
+                                                className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-black border border-white/5 active:scale-95 transition-all"
                                             >
                                                 +{step} {goal.unit}
                                             </button>
                                             <button 
                                                 onClick={() => updateGoalProgress(goal.id, step * 5)}
-                                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black border border-white/5 active:scale-95 transition-all"
+                                                className="flex-1 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-black border border-white/5 active:scale-95 transition-all"
                                             >
                                                 +{step * 5} {goal.unit}
-                                            </button>
-                                            <button 
-                                                onClick={() => deleteGoal(goal.id)} 
-                                                className="px-4 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors"
-                                            >
-                                                ✕
                                             </button>
                                         </div>
                                     )}
                                     
                                     {goal.isCompleted && (
-                                        <div className="mt-4 py-3 bg-[#00B050]/20 text-[#00B050] text-center rounded-xl text-xs font-black uppercase tracking-widest border border-[#00B050]/20">
+                                        <div className="py-2 bg-[#00B050]/20 text-[#00B050] text-center rounded-lg text-[10px] font-black uppercase tracking-widest border border-[#00B050]/20">
                                             Цель Достигнута
                                         </div>
                                     )}
@@ -371,38 +401,63 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                 )}
             </div>
 
-            {/* ADD MODAL */}
-            {isAddModalOpen && (
+            {/* ADD/EDIT MODAL */}
+            {isModalOpen && (
                 <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-end sm:items-center justify-center animate-fade-in pb-20">
                     <div className="w-full sm:max-w-sm bg-[#1F2128] rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 pb-10 border-t border-white/10 shadow-2xl animate-slide-up">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-lg font-black uppercase tracking-wide">
-                                Новая {activeTab === 'HABITS' ? 'Привычка' : 'Цель'}
+                                {editingId ? 'Редактировать' : 'Новая'} {activeTab === 'HABITS' ? 'Привычка' : 'Цель'}
                             </h3>
                             <button onClick={closeModal} className="text-white/40 hover:text-white text-xl">✕</button>
                         </div>
 
                         <div className="space-y-4">
                             <input 
-                                value={newTitle}
-                                onChange={e => setNewTitle(e.target.value)}
+                                value={formTitle}
+                                onChange={e => setFormTitle(e.target.value)}
                                 placeholder="Название..."
                                 className="w-full bg-black/20 border border-white/10 p-4 rounded-xl text-white font-bold outline-none focus:border-[#6C5DD3]"
                                 autoFocus
                             />
 
+                            {activeTab === 'HABITS' && (
+                                <>
+                                    <input 
+                                        value={formDescription}
+                                        onChange={e => setFormDescription(e.target.value)}
+                                        placeholder="Описание (опционально)"
+                                        className="w-full bg-black/20 border border-white/10 p-4 rounded-xl text-xs text-white/80 outline-none focus:border-[#6C5DD3]"
+                                    />
+                                    <div>
+                                        <label className="text-[10px] font-bold text-white/40 uppercase mb-2 block">Иконка</label>
+                                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                            {AVAILABLE_ICONS.map(icon => (
+                                                <button 
+                                                    key={icon}
+                                                    onClick={() => setFormIcon(icon)}
+                                                    className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-xl border transition-all ${formIcon === icon ? 'bg-[#6C5DD3] border-[#6C5DD3]' : 'bg-white/5 border-white/10'}`}
+                                                >
+                                                    {icon}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
                             {activeTab === 'GOALS' && (
                                 <div className="flex gap-3">
                                     <input 
                                         type="number"
-                                        value={newGoalTarget}
-                                        onChange={e => setNewGoalTarget(e.target.value)}
+                                        value={formTarget}
+                                        onChange={e => setFormTarget(e.target.value)}
                                         placeholder="Цель (число)"
                                         className="flex-1 bg-black/20 border border-white/10 p-4 rounded-xl text-white font-bold outline-none focus:border-[#6C5DD3]"
                                     />
                                     <select 
-                                        value={newGoalUnit}
-                                        onChange={e => setNewGoalUnit(e.target.value)}
+                                        value={formUnit}
+                                        onChange={e => setFormUnit(e.target.value)}
                                         className="w-20 bg-black/20 border border-white/10 p-4 rounded-xl text-white font-bold outline-none"
                                     >
                                         <option value="₽">₽</option>
@@ -414,9 +469,8 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                                 </div>
                             )}
                             
-                            {/* NOTE: Create button is now in the Smart Island */}
                             <p className="text-center text-white/30 text-[10px] font-bold uppercase tracking-widest mt-4">
-                                Нажмите "Создать" внизу
+                                Нажмите "Сохранить" внизу
                             </p>
                         </div>
                     </div>

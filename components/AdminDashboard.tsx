@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
 import { AppConfig, Module, UserProgress, Material, Stream, CalendarEvent, ArenaScenario, AppNotification, Lesson, UserRole, HomeworkType, AIProviderId } from '../types';
 import { Button } from './Button';
 import { telegram } from '../services/telegramService';
+import { Logger } from '../services/logger';
 
 interface AdminDashboardProps {
   config: AppConfig;
@@ -51,6 +53,16 @@ const StatCard = ({ icon, label, value }: { icon: string; label: string; value: 
   </div>
 );
 
+// Helper to extract youtube thumb for preview
+const getYouTubeThumbnail = (url?: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) 
+      ? `https://img.youtube.com/vi/${match[2]}/mqdefault.jpg` 
+      : null;
+};
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   config, onUpdateConfig, 
   modules, onUpdateModules, 
@@ -98,6 +110,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       addToast('success', 'Отправлено');
   };
 
+  const handleClearLogs = () => {
+      Logger.clear();
+      telegram.haptic('success');
+      addToast('info', 'Логи очищены');
+  };
+
   const handleSaveAIConfig = () => {
       onUpdateConfig({ 
           ...config, 
@@ -126,6 +144,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       addToast('success', 'Настройки Airtable обновлены');
   };
 
+  const handleUpdateModuleDetails = (moduleId: string, updates: Partial<Module>) => {
+      const updatedModules = modules.map(m => m.id === moduleId ? { ...m, ...updates } : m);
+      onUpdateModules(updatedModules);
+  };
+
   const handleDeleteModule = (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
       if (confirm('Удалить модуль?')) {
@@ -144,7 +167,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const newRole: UserRole = user.role === 'ADMIN' ? 'STUDENT' : 'ADMIN';
       
-      // Confirmation Dialog
       if (!window.confirm(`Вы уверены, что хотите назначить пользователю ${user.name} роль ${newRole}?`)) {
           return;
       }
@@ -205,7 +227,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           lesson: { ...editingLessonState.lesson, content: newContent }
       });
       
-      // Focus back after state update (simplified)
       setTimeout(() => textarea.focus(), 0);
   };
 
@@ -240,6 +261,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <StatCard icon="🔔" label="Уведомлений" value={notifications.length} />
                 </div>
                 
+                <div className="flex gap-4">
+                    <button 
+                        onClick={handleClearLogs}
+                        className="flex-1 py-4 rounded-[1.5rem] bg-[#1F2128] border border-white/5 text-text-secondary text-[10px] font-black uppercase tracking-widest hover:bg-white/5 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        <span>🗑️</span> Очистить Логи
+                    </button>
+                </div>
+
                 <div className="bg-surface border border-border-color p-6 rounded-[2.5rem] shadow-sm space-y-4">
                     <h3 className="font-black text-xs uppercase tracking-widest text-[#6C5DD3] flex items-center gap-2">
                         <span className="animate-pulse">📡</span> Системное Оповещение
@@ -256,9 +286,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
-        {/* --- VIEW: NEURAL CORE (AI) --- */}
+        {/* ... (Other sections like NEURAL_CORE) ... */}
         {activeSubTab === 'NEURAL_CORE' && (
             <div className="space-y-6 animate-slide-up">
+                {/* ... (Existing Neural Core Content) ... */}
                 <div className="bg-[#1F2128] border border-white/10 p-6 rounded-[2.5rem] relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-[40px]"></div>
                     <div className="flex items-center gap-3 mb-6 relative z-10">
@@ -275,13 +306,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         placeholder="Ты — Командир элитного отряда..."
                     />
                 </div>
-
                 <div className="bg-surface border border-border-color p-6 rounded-[2.5rem]">
                     <h3 className="font-bold text-text-primary mb-4">Настройки Провайдера</h3>
-                    
-                    {/* Provider Selector */}
                     <div className="space-y-4 mb-6">
-                        <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Основная Модель</label>
                         <div className="grid grid-cols-2 gap-2">
                             {['GOOGLE_GEMINI', 'OPENAI_GPT4', 'GROQ', 'OPENROUTER'].map((p) => (
                                 <button
@@ -294,110 +321,101 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             ))}
                         </div>
                     </div>
-
-                    {/* API Keys */}
                     <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">API Ключи (Скрыто)</label>
-                        
                         <div className="space-y-2">
-                            <input 
-                                type="password"
-                                value={apiKeys.google || ''}
-                                onChange={(e) => setApiKeys({...apiKeys, google: e.target.value})}
-                                placeholder="Google Gemini API Key"
-                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                            />
-                            <input 
-                                type="password"
-                                value={apiKeys.groq || ''}
-                                onChange={(e) => setApiKeys({...apiKeys, groq: e.target.value})}
-                                placeholder="Groq API Key"
-                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                            />
-                            <input 
-                                type="password"
-                                value={apiKeys.openai || ''}
-                                onChange={(e) => setApiKeys({...apiKeys, openai: e.target.value})}
-                                placeholder="OpenAI API Key"
-                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                            />
-                            <input 
-                                type="password"
-                                value={apiKeys.openrouter || ''}
-                                onChange={(e) => setApiKeys({...apiKeys, openrouter: e.target.value})}
-                                placeholder="OpenRouter API Key"
-                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                            />
+                            <input type="password" value={apiKeys.google || ''} onChange={(e) => setApiKeys({...apiKeys, google: e.target.value})} placeholder="Google Gemini API Key" className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" />
+                            <input type="password" value={apiKeys.groq || ''} onChange={(e) => setApiKeys({...apiKeys, groq: e.target.value})} placeholder="Groq API Key" className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" />
+                            <input type="password" value={apiKeys.openai || ''} onChange={(e) => setApiKeys({...apiKeys, openai: e.target.value})} placeholder="OpenAI API Key" className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" />
+                            <input type="password" value={apiKeys.openrouter || ''} onChange={(e) => setApiKeys({...apiKeys, openrouter: e.target.value})} placeholder="OpenRouter API Key" className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" />
                         </div>
                     </div>
-
                     <Button onClick={handleSaveAIConfig} fullWidth className="!mt-6 !bg-[#6C5DD3]">Сохранить Конфигурацию</Button>
                 </div>
             </div>
         )}
 
-        {/* --- VIEW: COURSE --- */}
+        {/* --- VIEW: COURSE (UPDATED) --- */}
         {activeSubTab === 'COURSE' && (
              <div className="space-y-4 animate-slide-up">
                  {modules.map((mod, i) => {
                      const isExpanded = expandedModuleId === mod.id;
+                     const previewThumb = mod.imageUrl || getYouTubeThumbnail(mod.videoUrl);
+
                      return (
                          <div key={mod.id} className="bg-surface border border-border-color rounded-[2rem] overflow-hidden transition-all duration-300">
                              <div 
-                                className="p-5 flex items-center gap-4 group cursor-pointer"
+                                className="p-5 flex items-center gap-4 group cursor-pointer relative overflow-hidden"
                                 onClick={() => setExpandedModuleId(isExpanded ? null : mod.id)}
                              >
-                                 <div className="w-12 h-12 rounded-2xl bg-body flex items-center justify-center font-black text-text-secondary text-sm border border-border-color">
-                                     {i + 1}
+                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-black/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                 <div className="w-12 h-12 rounded-2xl bg-body flex items-center justify-center font-black text-text-secondary text-sm border border-border-color relative z-10 overflow-hidden">
+                                     {previewThumb ? <img src={previewThumb} className="w-full h-full object-cover" /> : (i + 1)}
                                  </div>
-                                 <div className="flex-1 min-w-0">
+                                 <div className="flex-1 min-w-0 relative z-10">
                                      <h4 className="font-bold text-text-primary truncate">{mod.title}</h4>
                                      <p className="text-xs text-text-secondary">{mod.lessons.length} уроков</p>
                                  </div>
-                                 <div className="flex gap-2">
-                                    <button onClick={(e) => handleDeleteModule(mod.id, e)} className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
-                                        🗑️
-                                    </button>
-                                    <button className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${isExpanded ? 'rotate-180 bg-body' : 'bg-body'}`}>
-                                        ▼
-                                    </button>
+                                 <div className="flex gap-2 relative z-10">
+                                    <button onClick={(e) => handleDeleteModule(mod.id, e)} className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">🗑️</button>
+                                    <button className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${isExpanded ? 'rotate-180 bg-body' : 'bg-body'}`}>▼</button>
                                  </div>
                              </div>
                              
-                             {/* Lesson List within Module */}
+                             {/* Expanded Edit Area */}
                              {isExpanded && (
-                                 <div className="bg-body/50 border-t border-border-color p-4 space-y-2">
-                                     {mod.lessons.map((lesson, idx) => (
-                                         <div key={lesson.id} className="flex items-center justify-between p-3 bg-surface rounded-xl border border-border-color">
-                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                 <span className="text-[10px] font-black text-text-secondary w-4">{idx + 1}</span>
-                                                 <span className="text-xs font-bold text-text-primary truncate">{lesson.title}</span>
+                                 <div className="bg-body/50 border-t border-border-color p-4 space-y-4">
+                                     {/* Module Edit Fields */}
+                                     <div className="grid gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+                                         <input 
+                                            value={mod.title} 
+                                            onChange={(e) => handleUpdateModuleDetails(mod.id, { title: e.target.value })}
+                                            className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-bold outline-none"
+                                            placeholder="Название модуля"
+                                         />
+                                         <textarea 
+                                            value={mod.description} 
+                                            onChange={(e) => handleUpdateModuleDetails(mod.id, { description: e.target.value })}
+                                            className="w-full bg-body border border-border-color p-3 rounded-xl text-xs outline-none h-16 resize-none"
+                                            placeholder="Описание модуля..."
+                                         />
+                                         <div className="flex items-center gap-2">
+                                             <div className="w-10 h-10 rounded-xl bg-body border border-border-color flex items-center justify-center text-xs overflow-hidden flex-shrink-0">
+                                                 {previewThumb ? <img src={previewThumb} className="w-full h-full object-cover" /> : '🖼️'}
                                              </div>
-                                             <button 
-                                                onClick={() => setEditingLessonState({ moduleId: mod.id, lesson })}
-                                                className="px-3 py-1 bg-[#6C5DD3]/10 text-[#6C5DD3] rounded-lg text-[10px] font-black uppercase hover:bg-[#6C5DD3] hover:text-white transition-colors"
-                                             >
-                                                Edit
-                                             </button>
+                                             <input 
+                                                value={mod.imageUrl || ''} 
+                                                onChange={(e) => handleUpdateModuleDetails(mod.id, { imageUrl: e.target.value })}
+                                                className="flex-1 bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none text-[#6C5DD3]"
+                                                placeholder="Ссылка на обложку (или авто из видео)"
+                                             />
                                          </div>
-                                     ))}
-                                     <div className="text-center pt-2">
-                                         <button className="text-[10px] font-bold text-text-secondary hover:text-[#6C5DD3] uppercase tracking-widest">
-                                             + Добавить урок
-                                         </button>
+                                     </div>
+
+                                     {/* Lesson List */}
+                                     <div className="space-y-2">
+                                         <p className="text-[10px] font-black uppercase text-text-secondary tracking-widest pl-2">Уроки</p>
+                                         {mod.lessons.map((lesson, idx) => (
+                                             <div key={lesson.id} className="flex items-center justify-between p-3 bg-surface rounded-xl border border-border-color">
+                                                 <div className="flex items-center gap-3 overflow-hidden">
+                                                     <span className="text-[10px] font-black text-text-secondary w-4">{idx + 1}</span>
+                                                     <span className="text-xs font-bold text-text-primary truncate">{lesson.title}</span>
+                                                 </div>
+                                                 <button onClick={() => setEditingLessonState({ moduleId: mod.id, lesson })} className="px-3 py-1 bg-[#6C5DD3]/10 text-[#6C5DD3] rounded-lg text-[10px] font-black uppercase hover:bg-[#6C5DD3] hover:text-white transition-colors">Edit</button>
+                                             </div>
+                                         ))}
+                                         <div className="text-center pt-2">
+                                             <button className="text-[10px] font-bold text-text-secondary hover:text-[#6C5DD3] uppercase tracking-widest">+ Добавить урок</button>
+                                         </div>
                                      </div>
                                  </div>
                              )}
                          </div>
                      );
                  })}
-                 <button className="w-full py-4 border-2 border-dashed border-border-color rounded-[2rem] text-text-secondary font-black uppercase text-xs hover:border-[#6C5DD3] hover:text-[#6C5DD3] transition-all">
-                     + Добавить Модуль
-                 </button>
+                 <button className="w-full py-4 border-2 border-dashed border-border-color rounded-[2rem] text-text-secondary font-black uppercase text-xs hover:border-[#6C5DD3] hover:text-[#6C5DD3] transition-all">+ Добавить Модуль</button>
              </div>
         )}
 
-        {/* --- MODAL: EDIT LESSON --- */}
         {editingLessonState && (
             <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6">
                 <div className="bg-[#1F2128] w-full sm:max-w-lg h-[90vh] sm:h-[85vh] rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 flex flex-col shadow-2xl animate-slide-up">
@@ -405,58 +423,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <h3 className="text-lg font-black text-white">Редактор Урока</h3>
                         <button onClick={() => setEditingLessonState(null)} className="text-white/40 hover:text-white">✕</button>
                     </div>
-                    
                     <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-                        {/* ... (Existing fields) ... */}
+                        <p className="text-white/50 text-sm">Редактирование {editingLessonState.lesson.title}...</p>
+                        <MarkdownToolbar onInsert={insertMarkdown} />
+                        <textarea id="lessonContentEditor" value={editingLessonState.lesson.content} onChange={e => setEditingLessonState({...editingLessonState, lesson: {...editingLessonState.lesson, content: e.target.value}})} className="w-full h-64 bg-black/30 text-white border border-white/10 p-3 rounded-xl outline-none" />
                     </div>
-
                     <div className="p-6 border-t border-white/10 bg-[#14161B] rounded-b-[2.5rem]">
-                        <Button onClick={handleSaveLesson} fullWidth className="!bg-[#6C5DD3] hover:!bg-[#5b4eb5]">
-                            СОХРАНИТЬ ИЗМЕНЕНИЯ
-                        </Button>
+                        <Button onClick={handleSaveLesson} fullWidth className="!bg-[#6C5DD3] hover:!bg-[#5b4eb5]">СОХРАНИТЬ ИЗМЕНЕНИЯ</Button>
                     </div>
                 </div>
             </div>
         )}
 
-        {/* --- VIEW: USERS --- */}
+        {/* ... (Other sections like USERS, ARENA, SETTINGS) ... */}
         {activeSubTab === 'USERS' && (
              <div className="space-y-4 animate-slide-up">
-                 <input 
-                    type="text" 
-                    placeholder="Поиск по имени, роли или telegram..." 
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="w-full bg-surface border border-border-color p-4 rounded-2xl text-sm outline-none focus:border-[#6C5DD3]"
-                 />
-                 
+                 <input type="text" placeholder="Поиск по имени, роли или telegram..." value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)} className="w-full bg-surface border border-border-color p-4 rounded-2xl text-sm outline-none focus:border-[#6C5DD3]" />
                  {filteredUsers.length === 0 && <p className="text-center text-text-secondary text-xs uppercase pt-4">Пользователи не найдены</p>}
-
                  {filteredUsers.map((user) => {
                      const isCurrentUser = user.telegramId === currentUser.telegramId || user.name === currentUser.name;
                      return (
                      <div key={user.telegramId || user.name} className={`bg-surface border border-border-color p-5 rounded-[2rem] flex items-center gap-4 ${isCurrentUser ? 'ring-2 ring-[#6C5DD3]/20 bg-[#6C5DD3]/5' : ''}`}>
                          <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}`} className="w-10 h-10 rounded-full object-cover bg-body" />
                          <div className="flex-1 min-w-0">
-                             <h4 className="font-bold text-text-primary truncate flex items-center gap-2">
-                                 {user.name}
-                                 {isCurrentUser && <span className="text-[8px] bg-[#6C5DD3] text-white px-1.5 py-0.5 rounded uppercase tracking-widest">Вы</span>}
-                             </h4>
+                             <h4 className="font-bold text-text-primary truncate flex items-center gap-2">{user.name} {isCurrentUser && <span className="text-[8px] bg-[#6C5DD3] text-white px-1.5 py-0.5 rounded uppercase tracking-widest">Вы</span>}</h4>
                              <p className="text-[10px] font-black text-text-secondary uppercase">{user.role} • LVL {user.level}</p>
                          </div>
-                         <button 
-                            onClick={() => toggleUserRole(user)}
-                            disabled={isCurrentUser}
-                            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border transition-all ${user.role === 'ADMIN' ? 'bg-[#6C5DD3] text-white border-transparent' : 'border-border-color text-text-secondary'} ${isCurrentUser ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}
-                         >
-                             {user.role}
-                         </button>
+                         <button onClick={() => toggleUserRole(user)} disabled={isCurrentUser} className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border transition-all ${user.role === 'ADMIN' ? 'bg-[#6C5DD3] text-white border-transparent' : 'border-border-color text-text-secondary'} ${isCurrentUser ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 active:scale-95'}`}>{user.role}</button>
                      </div>
                  )})}
              </div>
         )}
 
-        {/* --- VIEW: ARENA --- */}
         {activeSubTab === 'ARENA' && (
              <div className="space-y-4 animate-slide-up">
                  {scenarios.map((sc, i) => (
@@ -469,141 +467,81 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                          <p className="text-xs text-text-secondary pl-3 line-clamp-2">{sc.objective}</p>
                      </div>
                  ))}
-                 <button className="w-full py-4 bg-[#6C5DD3] text-white rounded-[2rem] font-black uppercase text-xs shadow-lg shadow-[#6C5DD3]/20">
-                     Создать Симуляцию
-                 </button>
+                 <button className="w-full py-4 bg-[#6C5DD3] text-white rounded-[2rem] font-black uppercase text-xs shadow-lg shadow-[#6C5DD3]/20">Создать Симуляцию</button>
              </div>
         )}
         
-        {/* --- VIEW: SETTINGS --- */}
         {activeSubTab === 'SETTINGS' && (
              <div className="space-y-6 animate-slide-up">
                  <div className="bg-surface border border-border-color p-6 rounded-[2.5rem]">
                      <h3 className="font-bold text-text-primary mb-6">Конфигурация Приложения</h3>
-                     
                      <div className="space-y-4 mb-6">
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Название Проекта</label>
-                             <input 
-                                 value={config.appName}
-                                 onChange={(e) => onUpdateConfig({...config, appName: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-bold outline-none focus:border-[#6C5DD3]"
-                             />
+                             <input value={config.appName} onChange={(e) => onUpdateConfig({...config, appName: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-bold outline-none focus:border-[#6C5DD3]" />
                          </div>
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Основной Цвет</label>
                              <div className="flex gap-2">
-                                <input 
-                                    type="color"
-                                    value={config.primaryColor}
-                                    onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})}
-                                    className="w-10 h-10 rounded-xl border-0 p-0 overflow-hidden cursor-pointer"
-                                />
-                                <input 
-                                    value={config.primaryColor}
-                                    onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})}
-                                    className="flex-1 bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                                />
+                                <input type="color" value={config.primaryColor} onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})} className="w-10 h-10 rounded-xl border-0 p-0 overflow-hidden cursor-pointer" />
+                                <input value={config.primaryColor} onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})} className="flex-1 bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" />
                              </div>
                          </div>
-                         {/* Welcome Video Config */}
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Welcome Video URL</label>
-                             <input 
-                                 value={config.welcomeVideoUrl || ''}
-                                 onChange={(e) => onUpdateConfig({...config, welcomeVideoUrl: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                                 placeholder="https://youtube.com/..."
-                             />
+                             <input value={config.welcomeVideoUrl || ''} onChange={(e) => onUpdateConfig({...config, welcomeVideoUrl: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" placeholder="https://youtube.com/..." />
                          </div>
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Welcome Message</label>
-                             <textarea 
-                                 value={config.welcomeMessage || ''}
-                                 onChange={(e) => onUpdateConfig({...config, welcomeMessage: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-medium outline-none focus:border-[#6C5DD3] h-20 resize-none"
-                                 placeholder="Приветствие для новичков..."
-                             />
+                             <textarea value={config.welcomeMessage || ''} onChange={(e) => onUpdateConfig({...config, welcomeMessage: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-medium outline-none focus:border-[#6C5DD3] h-20 resize-none" placeholder="Приветствие для новичков..." />
                          </div>
                      </div>
-                     
-                     {/* AIRTABLE CONFIG */}
                      <div className="space-y-4 mb-6 pt-6 border-t border-border-color">
                          <h4 className="text-xs font-black uppercase text-[#6C5DD3]">Airtable Sync (Optional)</h4>
-                         
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Base ID</label>
-                             <input 
-                                 value={airtableConfig.baseId}
-                                 onChange={(e) => setAirtableConfig({...airtableConfig, baseId: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                                 placeholder="app..."
-                             />
+                             <input value={airtableConfig.baseId} onChange={(e) => setAirtableConfig({...airtableConfig, baseId: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" placeholder="app..." />
                          </div>
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Table Name</label>
-                             <input 
-                                 value={airtableConfig.tableName}
-                                 onChange={(e) => setAirtableConfig({...airtableConfig, tableName: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                                 placeholder="Users"
-                             />
+                             <input value={airtableConfig.tableName} onChange={(e) => setAirtableConfig({...airtableConfig, tableName: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" placeholder="Users" />
                          </div>
                          <div className="space-y-1">
                              <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Personal Access Token</label>
-                             <input 
-                                 type="password"
-                                 value={airtableConfig.pat}
-                                 onChange={(e) => setAirtableConfig({...airtableConfig, pat: e.target.value})}
-                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
-                                 placeholder="pat..."
-                             />
+                             <input type="password" value={airtableConfig.pat} onChange={(e) => setAirtableConfig({...airtableConfig, pat: e.target.value})} className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]" placeholder="pat..." />
                          </div>
                          <Button onClick={handleSaveAirtableConfig} fullWidth variant="secondary" className="!mt-2 !py-3">Сохранить Airtable</Button>
                      </div>
-
                      <div className="space-y-4">
                          <div className="flex items-center justify-between">
                              <div>
                                  <p className="font-bold text-sm">Технические работы</p>
                                  <p className="text-[10px] text-text-secondary">Блокирует доступ студентам</p>
                              </div>
-                             <button 
-                                onClick={() => toggleFeature('maintenanceMode')}
-                                className={`w-12 h-7 rounded-full transition-colors relative ${config.features.maintenanceMode ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}
-                             >
+                             <button onClick={() => toggleFeature('maintenanceMode')} className={`w-12 h-7 rounded-full transition-colors relative ${config.features.maintenanceMode ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}>
                                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${config.features.maintenanceMode ? 'left-6' : 'left-1'}`}></div>
                              </button>
                          </div>
-
                          <div className="flex items-center justify-between">
                              <div>
                                  <p className="font-bold text-sm">Авто-проверка ДЗ</p>
                                  <p className="text-[10px] text-text-secondary">ИИ принимает решения без куратора</p>
                              </div>
-                             <button 
-                                onClick={() => toggleFeature('autoApproveHomework')}
-                                className={`w-12 h-7 rounded-full transition-colors relative ${config.features.autoApproveHomework ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}
-                             >
+                             <button onClick={() => toggleFeature('autoApproveHomework')} className={`w-12 h-7 rounded-full transition-colors relative ${config.features.autoApproveHomework ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}>
                                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${config.features.autoApproveHomework ? 'left-6' : 'left-1'}`}></div>
                              </button>
                          </div>
-
                          <div className="flex items-center justify-between">
                              <div>
                                  <p className="font-bold text-sm">Публичный Рейтинг</p>
                                  <p className="text-[10px] text-text-secondary">Показывать ТОП-3 всем</p>
                              </div>
-                             <button 
-                                onClick={() => toggleFeature('publicLeaderboard')}
-                                className={`w-12 h-7 rounded-full transition-colors relative ${config.features.publicLeaderboard ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}
-                             >
+                             <button onClick={() => toggleFeature('publicLeaderboard')} className={`w-12 h-7 rounded-full transition-colors relative ${config.features.publicLeaderboard ? 'bg-[#6C5DD3]' : 'bg-gray-700'}`}>
                                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${config.features.publicLeaderboard ? 'left-6' : 'left-1'}`}></div>
                              </button>
                          </div>
                      </div>
                  </div>
-
                  <div className="text-center">
                      <p className="text-[10px] text-text-secondary uppercase tracking-widest mb-2">Версия системы: 5.0.0</p>
                      <p className="text-[10px] text-text-secondary uppercase tracking-widest">Database: Neon PostgreSQL</p>

@@ -135,33 +135,33 @@ const App: React.FC = () => {
           if (JSON.stringify(content.scenarios) !== JSON.stringify(scenarios)) setScenarios(content.scenarios);
       }
 
-      // 4. Sync User List
+      // 4. Sync User List (CRM)
       const remoteUsers = await Backend.getLeaderboard();
       if (JSON.stringify(remoteUsers) !== JSON.stringify(allUsers)) {
           setAllUsers(remoteUsers);
       }
 
-      // 5. Sync Current User (Now via Airtable logic in BackendService)
+      // 5. Sync Current User (Airtable Priority)
       if (userProgress.isAuthenticated) {
           const freshUser = await Backend.syncUser(userProgress);
-          
-          if (freshUser.role !== userProgress.role || freshUser.level !== userProgress.level || freshUser.xp !== userProgress.xp) {
-              setUserProgress(prev => ({ 
-                  ...prev, 
-                  ...freshUser, // Merge all fresh data including habits/goals
-              }));
+          // Check if key data changed
+          if (freshUser.xp !== userProgress.xp || freshUser.level !== userProgress.level || freshUser.role !== userProgress.role) {
+              setUserProgress(prev => ({ ...prev, ...freshUser }));
           }
       }
   }, [appConfig, userProgress, modules, materials, streams, events, scenarios, allUsers, notifications]);
 
+  // Initial Sync on Mount and periodic polling
   useEffect(() => {
       syncData();
       Backend.onSync(() => syncData());
-      const interval = setInterval(syncData, 15000); // Poll every 15s to respect Airtable rate limits
+      const interval = setInterval(syncData, 15000); // Poll every 15s
       return () => clearInterval(interval);
   }, []); 
   
   useEffect(() => {
+      // Re-register interval if dependencies change significantly, 
+      // but usually syncData captures latest state via ref if needed, or simple dep array
       const interval = setInterval(syncData, 15000);
       return () => clearInterval(interval);
   }, [syncData]);
@@ -211,9 +211,18 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async (userData: any) => {
+    addToast('info', 'Синхронизация данных...');
+    
+    // Attempt full sync with Airtable immediately
     const tempUser = { ...userProgress, ...userData, isAuthenticated: true };
-    setUserProgress(tempUser);
-    Backend.saveUser(tempUser);
+    const syncedUser = await Backend.syncUser(tempUser); // Force sync
+    
+    setUserProgress(syncedUser);
+    Backend.saveUser(syncedUser); // Persist
+    
+    // Also fetch global lists
+    await syncData(); 
+    
     addToast('success', 'С возвращением, боец!');
   };
 

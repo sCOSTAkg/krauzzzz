@@ -11,6 +11,15 @@ import { Button } from './Button';
 // Fix for TypeScript error where ReactPlayer props are not recognized correctly
 const VideoPlayer = ReactPlayer as unknown as React.ComponentType<any>;
 
+// Helper to extract text from React children to detect prefixes
+const extractTextFromNodes = (node: React.ReactNode): string => {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(extractTextFromNodes).join('');
+  if (React.isValidElement(node) && node.props.children) return extractTextFromNodes(node.props.children);
+  return '';
+};
+
 interface LessonViewProps {
   lesson: Lesson;
   isCompleted: boolean;
@@ -261,12 +270,61 @@ export const LessonView: React.FC<LessonViewProps> = ({
                         ul: (props) => <ul className="list-disc pl-5 mb-6 space-y-2 marker:text-[#6C5DD3]" {...props} />,
                         ol: (props) => <ol className="list-decimal pl-5 mb-6 space-y-2 marker:text-[#6C5DD3] font-bold" {...props} />,
                         li: (props) => <li className="pl-1 text-sm md:text-base" {...props} />,
-                        blockquote: (props) => (
-                            <div className="relative my-8 group">
-                                <div className="absolute -left-2 top-0 bottom-0 w-1 bg-[#6C5DD3] rounded-full opacity-50"></div>
-                                <blockquote className="pl-6 italic text-white font-medium text-base md:text-lg leading-relaxed opacity-90" {...props} />
-                            </div>
-                        ),
+                        blockquote: (props) => {
+                            const textContent = extractTextFromNodes(props.children).trim();
+                            const lowerText = textContent.toLowerCase();
+                            
+                            // Check prefixes in English and Russian
+                            const isNote = lowerText.startsWith('note:') || lowerText.startsWith('примечание:');
+                            const isWarning = lowerText.startsWith('warning:') || lowerText.startsWith('внимание:') || lowerText.startsWith('caution:');
+                            const isTip = lowerText.startsWith('tip:') || lowerText.startsWith('совет:');
+
+                            let borderColor = 'border-[#6C5DD3]/50'; 
+                            let icon = null;
+                            let bgClass = '';
+                            let title = null;
+                            let titleColor = '#fff';
+
+                            if (isNote) {
+                                borderColor = 'border-blue-500';
+                                icon = 'ℹ️';
+                                bgClass = 'bg-blue-500/10';
+                                title = 'Note';
+                                titleColor = '#60a5fa'; // blue-400
+                            } else if (isWarning) {
+                                borderColor = 'border-orange-500';
+                                icon = '⚠️';
+                                bgClass = 'bg-orange-500/10';
+                                title = 'Warning';
+                                titleColor = '#fb923c'; // orange-400
+                            } else if (isTip) {
+                                borderColor = 'border-green-500';
+                                icon = '💡';
+                                bgClass = 'bg-green-500/10';
+                                title = 'Tip';
+                                titleColor = '#4ade80'; // green-400
+                            }
+
+                            if (isNote || isWarning || isTip) {
+                                return (
+                                    <div className={`my-6 rounded-2xl overflow-hidden border-l-4 ${borderColor} ${bgClass} p-5 relative`}>
+                                        <div className="flex items-center gap-2 mb-2 font-black uppercase text-[10px] tracking-widest opacity-90" style={{ color: titleColor }}>
+                                            <span className="text-base">{icon}</span>
+                                            <span>{title}</span>
+                                        </div>
+                                        <div className="italic text-white font-medium text-sm leading-relaxed opacity-90">
+                                            {props.children}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="relative my-8 group pl-6 border-l-4 border-[#6C5DD3]/50">
+                                    <blockquote className="italic text-white font-medium text-base md:text-lg leading-relaxed opacity-90" {...props} />
+                                </div>
+                            );
+                        },
                         code: (props) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-[#6C5DD3] font-bold break-all border border-white/5" {...props} />,
                         a: (props) => <a className="text-[#6C5DD3] underline underline-offset-4 decoration-2 decoration-[#6C5DD3]/30 hover:decoration-[#6C5DD3] transition-all font-bold break-all" {...props} />,
                         strong: (props) => <strong className="font-bold text-white" {...props} />,

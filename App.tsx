@@ -435,6 +435,8 @@ const App: React.FC = () => {
         setAdminSubTab={setAdminSubTab}
         isLessonActive={!!selectedLessonId}
         onExitLesson={() => setSelectedLessonId(null)}
+        notifications={notifications}
+        onClearNotifications={handleClearNotifications}
       />
     </div>
   );

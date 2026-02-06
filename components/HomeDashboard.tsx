@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Tab, UserProgress, Lesson, Material, Stream, ArenaScenario, AppNotification } from '../types';
 import { ModuleList } from './ModuleList';
 import { telegram } from '../services/telegramService';
@@ -23,20 +23,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   userProgress, 
   onProfileClick,
   modules,
-  onSelectLesson,
-  notifications = []
+  onSelectLesson
 }) => {
-  const [showNotifications, setShowNotifications] = useState(false);
-
   // Calculate overall course progress
   const totalLessons = modules.reduce((acc, m) => acc + m.lessons.length, 0);
   const completedCount = userProgress.completedLessonIds.length;
   const overallProgress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
-
-  const handleNotificationsToggle = () => {
-      setShowNotifications(!showNotifications);
-      telegram.haptic('light');
-  };
 
   const getGreeting = () => {
       const hour = new Date().getHours();
@@ -68,51 +60,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               </div>
           </div>
           
-          <div className="relative">
-              <button 
-                onClick={handleNotificationsToggle}
-                className="w-10 h-10 rounded-full bg-surface border border-border-color flex items-center justify-center text-text-secondary shadow-sm hover:text-[#6C5DD3] active:scale-95 transition-all relative"
-              >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                  </svg>
-                  {notifications.length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border border-surface"></span>}
-              </button>
-
-              {/* Notification Popup */}
-              {showNotifications && (
-                  <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>
-                      <div className="absolute right-0 top-12 z-50 w-72 bg-card border border-border-color rounded-2xl shadow-2xl p-2 animate-scale-in origin-top-right">
-                          <div className="px-3 py-2 border-b border-border-color mb-1">
-                              <h3 className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Центр связи</h3>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto custom-scrollbar p-1 space-y-1">
-                              {notifications.length === 0 ? (
-                                  <p className="text-[10px] text-text-secondary text-center py-4 opacity-60">Новых сообщений нет</p>
-                              ) : (
-                                  notifications.map(n => (
-                                      <div key={n.id} className={`p-3 rounded-xl border transition-colors ${
-                                          n.type === 'ALERT' ? 'bg-red-500/5 border-red-500/20' : 
-                                          'bg-surface border-transparent hover:border-border-color'
-                                      }`}>
-                                          <div className="flex justify-between items-center mb-1">
-                                              <span className={`text-[9px] font-black uppercase tracking-wide ${
-                                                  n.type === 'ALERT' ? 'text-red-500' : 
-                                                  n.type === 'SUCCESS' ? 'text-green-500' : 'text-[#6C5DD3]'
-                                              }`}>{n.type}</span>
-                                              <span className="text-[9px] text-text-secondary opacity-50">{new Date(n.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                          </div>
-                                          <p className="text-xs font-bold text-text-primary leading-snug">{n.title}</p>
-                                          <p className="text-[10px] text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
-                                      </div>
-                                  ))
-                              )}
-                          </div>
-                      </div>
-                  </>
-              )}
-          </div>
+          {/* Right side is now empty, SmartNav handles notifications */}
       </div>
 
       <div className="px-6 pt-4 pb-36 space-y-8 animate-fade-in max-w-4xl mx-auto">

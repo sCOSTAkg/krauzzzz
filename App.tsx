@@ -96,14 +96,14 @@ const App: React.FC = () => {
   // --- AUTOMATIC SYNCHRONIZATION (POLLING) ---
   useEffect(() => {
       const syncData = async () => {
-          // 1. Fetch Global Config
+          // 1. Sync Global Config
           const remoteConfig = await Backend.fetchGlobalConfig(appConfig);
           if (JSON.stringify(remoteConfig) !== JSON.stringify(appConfig)) {
               setAppConfig(remoteConfig);
               Storage.set('appConfig', remoteConfig);
           }
 
-          // 2. Fetch Notifications (Filtered for current user)
+          // 2. Sync Notifications (Filtered for current user)
           const rawNotifs = await Backend.fetchNotifications();
           const myNotifs = rawNotifs.filter(n => {
               if (n.targetUserId && n.targetUserId !== userProgress.telegramId) return false;
@@ -111,7 +111,6 @@ const App: React.FC = () => {
               return true;
           });
 
-          // Check for new notifications
           if (myNotifs.length > prevNotifCount.current) {
               const latest = myNotifs[myNotifs.length - 1];
               if (latest && prevNotifCount.current > 0) { 
@@ -119,14 +118,30 @@ const App: React.FC = () => {
               }
           }
           
-          // Merge with locally generated notifications (like role changes handled below)
           const localNotifs = notifications.filter(n => n.id.startsWith('local-'));
           const combined = [...myNotifs, ...localNotifs].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           
           prevNotifCount.current = myNotifs.length;
           setNotifications(combined);
           
-          // 3. Sync User Role (Check if admin changed my role)
+          // 3. Sync Content (Modules, Materials, Streams, etc.)
+          const content = await Backend.fetchAllContent();
+          if (content) {
+              if (JSON.stringify(content.modules) !== JSON.stringify(modules)) setModules(content.modules);
+              if (JSON.stringify(content.materials) !== JSON.stringify(materials)) setMaterials(content.materials);
+              if (JSON.stringify(content.streams) !== JSON.stringify(streams)) setStreams(content.streams);
+              if (JSON.stringify(content.events) !== JSON.stringify(events)) setEvents(content.events);
+              if (JSON.stringify(content.scenarios) !== JSON.stringify(scenarios)) setScenarios(content.scenarios);
+          }
+
+          // 4. Sync User List (for Leaderboard & Admin)
+          const remoteUsers = await Backend.getLeaderboard();
+          if (JSON.stringify(remoteUsers) !== JSON.stringify(allUsers)) {
+              setAllUsers(remoteUsers);
+              Storage.set('allUsers', remoteUsers);
+          }
+
+          // 5. Sync Current User Role/Stats
           if (userProgress.isAuthenticated) {
               const freshUser = await Backend.syncUser(userProgress);
               
@@ -138,7 +153,6 @@ const App: React.FC = () => {
                       xp: freshUser.xp
                   }));
 
-                  // If role changed specifically, generate a persistent local notification
                   if (freshUser.role !== userProgress.role) {
                       const roleNotif: AppNotification = {
                           id: `local-role-${Date.now()}`,
@@ -162,7 +176,7 @@ const App: React.FC = () => {
       // Poll every 10 seconds
       const interval = setInterval(syncData, 10000);
       return () => clearInterval(interval);
-  }, [userProgress.isAuthenticated, appConfig, userProgress.role]); 
+  }, [userProgress.isAuthenticated, appConfig, userProgress.role, modules, materials, streams, events, scenarios, allUsers]);
 
   // --- THEME & PERSISTENCE ---
   useEffect(() => {
@@ -208,18 +222,15 @@ const App: React.FC = () => {
       } else if (Object.values(Tab).includes(link as Tab)) {
           setActiveTab(link as Tab);
       } else {
-          // Fallback or specific handlers
           console.log('Navigating to:', link);
       }
   };
 
   const handleLogin = async (userData: any) => {
-    // Optimistic Update
     const tempUser = { ...userProgress, ...userData, isAuthenticated: true };
     setUserProgress(tempUser);
     setShowWelcome(false);
     
-    // Check Referral
     if (userData.isRegistration && window.Telegram?.WebApp?.initDataUnsafe?.start_param) {
         const startParam = window.Telegram.WebApp.initDataUnsafe.start_param;
         if (startParam.startsWith('ref_')) {
@@ -228,7 +239,6 @@ const App: React.FC = () => {
             
             if (referrer) {
                 const result = XPService.addReferral(referrer);
-                // Save Referrer Update
                 Backend.saveUser(result.user);
                 telegram.showAlert(`Вас пригласил ${referrer.name}. Бонус начислен!`, 'Referral');
             }
@@ -305,7 +315,6 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden">
       
       <SystemHealthAgent config={appConfig.systemAgent} />
-      {/* Global Chat Assistant (Floating) */}
       <ChatAssistant />
 
       <div className="fixed top-[var(--safe-top)] left-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">

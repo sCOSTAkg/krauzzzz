@@ -51,28 +51,34 @@ class BackendService {
         }
     }
 
-    // 2. Fallback: Local "Mock DB" Sync (for Admin role updates to take effect in demo mode)
-    // Check 'allUsers' storage which acts as the DB in local mode
+    // 2. Fallback: Local "Mock DB" Sync
     const allUsers = Storage.get<UserProgress[]>('allUsers', []);
     const remoteVer = allUsers.find(u => u.telegramId === localUser.telegramId || (u.telegramUsername && u.telegramUsername === localUser.telegramUsername));
     
     if (remoteVer) {
-        // If the 'remote' (stored in allUsers) has newer data, sync critical fields
-        // This allows admin updates (Role, Level reset) to propagate to the session
         let needsUpdate = false;
         const updates: Partial<UserProgress> = {};
 
+        // Role Authority: DB is always right
         if (remoteVer.role !== localUser.role) {
             updates.role = remoteVer.role;
             needsUpdate = true;
         }
+        
+        // Level Authority
         if (remoteVer.level !== localUser.level) {
             updates.level = remoteVer.level;
-            updates.xp = remoteVer.xp; // Sync XP if level changed (likely reset)
             needsUpdate = true;
         }
-        // Also sync XP if it's significantly different (e.g. admin bonus)
-        if (Math.abs(remoteVer.xp - localUser.xp) > 100) {
+
+        // XP Logic: 
+        // 1. If remote is 0 and local is > 0, assume Admin Reset -> Force 0.
+        // 2. If remote > local, assume Admin Bonus -> Take remote.
+        // 3. If local > remote, it's pending progress -> Keep local (saveUser will update remote later).
+        if (remoteVer.xp === 0 && localUser.xp > 0) {
+             updates.xp = 0;
+             needsUpdate = true;
+        } else if (remoteVer.xp > localUser.xp) {
              updates.xp = remoteVer.xp;
              needsUpdate = true;
         }
@@ -86,11 +92,6 @@ class BackendService {
   }
 
   async saveUser(user: UserProgress) {
-    // NOTE: We do NOT set 'progress' key here anymore. 
-    // 'progress' is the session of the CURRENT user. 
-    // saveUser might be called by Admin to update ANOTHER user.
-    // App.tsx handles persistence of the current user's session.
-
     if (isSupabaseConfigured() && user.telegramId) {
         try {
           const { id, telegramId, telegramUsername, xp, level, role, ...rest } = user;
@@ -115,7 +116,7 @@ class BackendService {
         }
     }
 
-    // Update Local "Mock DB" (allUsers) so Admin updates persist in local mode
+    // Update Local "Mock DB" (allUsers)
     const allUsers = Storage.get<UserProgress[]>('allUsers', []);
     const idx = allUsers.findIndex(u => u.telegramId === user.telegramId);
     let newAllUsers = [...allUsers];

@@ -41,54 +41,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editingUser, setEditingUser] = useState<UserProgress | null>(null);
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<{moduleId: string, lesson: Lesson} | null>(null);
+  
+  // Calendar State
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
 
   // --- LOCAL STATE FOR NOTIFICATIONS ---
   const [notifTitle, setNotifTitle] = useState('');
   const [notifMsg, setNotifMsg] = useState('');
   const [notifType, setNotifType] = useState<AppNotification['type']>('INFO');
-
-  // --- HELPER FOR MARKDOWN EDITOR ---
-  const handleMarkdownInsert = (prefix: string, suffix: string, placeholder: string = 'text') => {
-      if (!editingLesson) return;
-      
-      const textarea = document.getElementById('markdown-editor-area') as HTMLTextAreaElement;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const text = editingLesson.lesson.content;
-      
-      const before = text.substring(0, start);
-      const selection = text.substring(start, end) || placeholder;
-      const after = text.substring(end, text.length);
-
-      const newText = `${before}${prefix}${selection}${suffix}${after}`;
-      
-      setEditingLesson({
-          ...editingLesson,
-          lesson: { ...editingLesson.lesson, content: newText }
-      });
-      
-      // Restore focus (timeout needed for React render cycle)
-      setTimeout(() => {
-          textarea.focus();
-          textarea.setSelectionRange(start + prefix.length, start + prefix.length + selection.length);
-      }, 0);
-  };
-
-  const handleImageInsert = () => {
-      const url = prompt('Введите URL изображения:', 'https://');
-      if (url) {
-          handleMarkdownInsert('![Alt text](', url + ')', '');
-      }
-  };
-
-  const handleLinkInsert = () => {
-      const url = prompt('Введите URL ссылки:', 'https://');
-      if (url) {
-          handleMarkdownInsert('[', `](${url})`, 'Текст ссылки');
-      }
-  };
 
   // --- USERS MANAGEMENT ---
   const renderUsers = () => {
@@ -261,37 +222,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <label className="text-[10px] uppercase text-gray-500 font-bold">Видео URL</label>
                               <input value={editingLesson.lesson.videoUrl || ''} onChange={e => setEditingLesson({...editingLesson, lesson: {...editingLesson.lesson, videoUrl: e.target.value}})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3]" placeholder="https://..." />
                           </div>
-                          
-                          {/* Rich Markdown Editor */}
                           <div>
-                              <label className="text-[10px] uppercase text-gray-500 font-bold mb-2 block">Контент (Markdown Editor)</label>
-                              
-                              {/* Toolbar */}
-                              <div className="flex gap-1 mb-2 overflow-x-auto pb-1">
-                                  <button onClick={() => handleMarkdownInsert('**', '**', 'bold')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white font-bold min-w-[32px]" title="Bold">B</button>
-                                  <button onClick={() => handleMarkdownInsert('*', '*', 'italic')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white italic min-w-[32px]" title="Italic">I</button>
-                                  <button onClick={() => handleMarkdownInsert('# ', '\n', 'Header 1')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white font-bold min-w-[32px]" title="H1">H1</button>
-                                  <button onClick={() => handleMarkdownInsert('## ', '\n', 'Header 2')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white font-bold min-w-[32px]" title="H2">H2</button>
-                                  <button onClick={() => handleMarkdownInsert('> ', '\n', 'Quote')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white min-w-[32px]" title="Quote">❝</button>
-                                  <button onClick={() => handleMarkdownInsert('- ', '\n', 'List Item')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white min-w-[32px]" title="List">≣</button>
-                                  <button onClick={handleLinkInsert} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white min-w-[32px]" title="Link">🔗</button>
-                                  <button onClick={handleImageInsert} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white min-w-[32px]" title="Image">🖼️</button>
-                                  <button onClick={() => handleMarkdownInsert('`', '`', 'code')} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white font-mono min-w-[32px]" title="Code">{`<>`}</button>
-                              </div>
-
-                              <textarea 
-                                id="markdown-editor-area"
-                                value={editingLesson.lesson.content} 
-                                onChange={e => setEditingLesson({...editingLesson, lesson: {...editingLesson.lesson, content: e.target.value}})} 
-                                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white outline-none focus:border-[#6C5DD3] h-60 font-mono text-sm leading-relaxed" 
-                                placeholder="Пишите контент урока здесь..."
-                              />
-                              <p className="text-[9px] text-slate-500 mt-1">Поддерживает Markdown. Используйте панель выше для форматирования.</p>
+                              <label className="text-[10px] uppercase text-gray-500 font-bold">Контент (Markdown)</label>
+                              <textarea value={editingLesson.lesson.content} onChange={e => setEditingLesson({...editingLesson, lesson: {...editingLesson.lesson, content: e.target.value}})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3] h-40 font-mono text-sm" />
                           </div>
-
                           <div>
                               <label className="text-[10px] uppercase text-gray-500 font-bold">Задание</label>
                               <textarea value={editingLesson.lesson.homeworkTask} onChange={e => setEditingLesson({...editingLesson, lesson: {...editingLesson.lesson, homeworkTask: e.target.value}})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3] h-20" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] uppercase text-gray-500 font-bold">Инструкция для AI</label>
+                              <textarea value={editingLesson.lesson.aiGradingInstruction} onChange={e => setEditingLesson({...editingLesson, lesson: {...editingLesson.lesson, aiGradingInstruction: e.target.value}})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3] h-20 font-mono text-xs" />
                           </div>
                           <div className="flex gap-2 pt-2">
                               <Button onClick={() => setEditingLesson(null)} variant="ghost" fullWidth>Отмена</Button>
@@ -466,24 +407,94 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // --- SCHEDULE MANAGEMENT ---
   const renderCalendar = () => {
-      const addEv = () => onUpdateEvents([...events, { id: Date.now().toString(), title: 'New Event', date: new Date().toISOString(), type: EventType.OTHER, description: '' }]);
-      const updateEv = (id: string, f: keyof CalendarEvent, v: any) => onUpdateEvents(events.map(e => e.id === id ? { ...e, [f]: v } : e));
+      const openAddModal = () => {
+          setEditingEvent({ id: Date.now().toString(), title: '', date: new Date().toISOString(), type: EventType.OTHER, description: '', durationMinutes: 60 });
+          setIsEventModalOpen(true);
+      };
+
+      const openEditModal = (ev: CalendarEvent) => {
+          setEditingEvent(ev);
+          setIsEventModalOpen(true);
+      };
+
+      const saveEvent = () => {
+          if (!editingEvent) return;
+          const exists = events.find(e => e.id === editingEvent.id);
+          let newEvents;
+          if (exists) {
+              newEvents = events.map(e => e.id === editingEvent.id ? editingEvent : e);
+          } else {
+              newEvents = [...events, editingEvent];
+          }
+          onUpdateEvents(newEvents);
+          setIsEventModalOpen(false);
+          setEditingEvent(null);
+          addToast('success', 'Событие сохранено');
+      };
+
+      const deleteEvent = (id: string) => {
+          if (confirm('Удалить событие?')) {
+              onUpdateEvents(events.filter(e => e.id !== id));
+              addToast('info', 'Событие удалено');
+          }
+      };
 
       return (
           <div className="space-y-4 pb-20 animate-fade-in">
-              <div className="flex justify-between items-center"><h2 className="text-xl font-black uppercase text-slate-900 dark:text-white">Календарь</h2><Button onClick={addEv} className="!py-2 !px-4 !text-xs">+</Button></div>
+              <div className="flex justify-between items-center"><h2 className="text-xl font-black uppercase text-slate-900 dark:text-white">Календарь</h2><Button onClick={openAddModal} className="!py-2 !px-4 !text-xs">+</Button></div>
+              
+              {/* Calendar Event Modal */}
+              {isEventModalOpen && editingEvent && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                      <div className="bg-[#1F2128] w-full max-w-md rounded-[2rem] p-6 border border-white/10 space-y-4 shadow-2xl">
+                          <h3 className="text-xl font-black text-white uppercase">Событие</h3>
+                          <div>
+                              <label className="text-[10px] uppercase text-gray-500 font-bold">Название</label>
+                              <input value={editingEvent.title} onChange={e => setEditingEvent({...editingEvent, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3]" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="text-[10px] uppercase text-gray-500 font-bold">Дата</label>
+                                  <input type="datetime-local" value={editingEvent.date.toString().substring(0, 16)} onChange={e => setEditingEvent({...editingEvent, date: new Date(e.target.value).toISOString()})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3]" />
+                              </div>
+                              <div>
+                                  <label className="text-[10px] uppercase text-gray-500 font-bold">Тип</label>
+                                  <select value={editingEvent.type} onChange={e => setEditingEvent({...editingEvent, type: e.target.value as EventType})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3]">
+                                      <option value="WEBINAR">Webinar</option>
+                                      <option value="HOMEWORK">Deadline</option>
+                                      <option value="OTHER">Other</option>
+                                  </select>
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-[10px] uppercase text-gray-500 font-bold">Длительность (мин)</label>
+                              <input type="number" value={editingEvent.durationMinutes} onChange={e => setEditingEvent({...editingEvent, durationMinutes: parseInt(e.target.value)})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3]" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] uppercase text-gray-500 font-bold">Описание</label>
+                              <textarea value={editingEvent.description} onChange={e => setEditingEvent({...editingEvent, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-[#6C5DD3] h-20 resize-none" />
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                              <Button onClick={() => setIsEventModalOpen(false)} variant="ghost" fullWidth>Отмена</Button>
+                              <Button onClick={saveEvent} fullWidth>Сохранить</Button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
               {events.map(ev => (
-                  <div key={ev.id} className="bg-white dark:bg-[#14161B] p-4 rounded-xl border border-slate-200 dark:border-white/5 text-xs space-y-2">
+                  <div key={ev.id} className="bg-white dark:bg-[#14161B] p-4 rounded-xl border border-slate-200 dark:border-white/5 text-xs space-y-2 flex justify-between items-center group hover:border-[#6C5DD3]/30 transition-all">
+                      <div>
+                          <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${ev.type === 'WEBINAR' ? 'bg-[#6C5DD3]' : ev.type === 'HOMEWORK' ? 'bg-yellow-500' : 'bg-slate-500'}`}></span>
+                              <h4 className="font-bold text-sm text-slate-900 dark:text-white">{ev.title}</h4>
+                          </div>
+                          <p className="text-[10px] text-slate-500 ml-4">{new Date(ev.date).toLocaleString()} • {ev.durationMinutes} мин</p>
+                      </div>
                       <div className="flex gap-2">
-                          <input value={ev.title} onChange={e => updateEv(ev.id, 'title', e.target.value)} className="font-bold flex-1 bg-transparent text-sm text-slate-900 dark:text-white border-b border-transparent focus:border-[#6C5DD3] outline-none" />
-                          <select value={ev.type} onChange={e => updateEv(ev.id, 'type', e.target.value)} className="bg-slate-100 dark:bg-white/5 rounded px-2 text-[10px] outline-none"><option value="WEBINAR">Webinar</option><option value="HOMEWORK">Deadline</option><option value="OTHER">Other</option></select>
-                          <button onClick={() => onUpdateEvents(events.filter(e => e.id !== ev.id))} className="text-red-500 hover:bg-red-500/10 px-2 rounded">✕</button>
+                          <button onClick={() => openEditModal(ev)} className="px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-white rounded-lg text-[10px] font-bold uppercase hover:bg-[#6C5DD3] hover:text-white transition-colors">Edit</button>
+                          <button onClick={() => deleteEvent(ev.id)} className="px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-bold uppercase hover:bg-red-500 hover:text-white transition-colors">✕</button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                          <input type="datetime-local" value={new Date(ev.date).toISOString().slice(0, 16)} onChange={e => updateEv(ev.id, 'date', new Date(e.target.value).toISOString())} className="bg-slate-50 dark:bg-white/5 p-2 rounded" />
-                          <input type="number" value={ev.durationMinutes || 60} onChange={e => updateEv(ev.id, 'durationMinutes', parseInt(e.target.value))} className="bg-slate-50 dark:bg-white/5 p-2 rounded" placeholder="Min" />
-                      </div>
-                      <textarea value={ev.description} onChange={e => updateEv(ev.id, 'description', e.target.value)} className="w-full bg-slate-50 dark:bg-white/5 p-2 rounded resize-none h-16" placeholder="Описание..." />
                   </div>
               ))}
           </div>
@@ -820,32 +831,4 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="min-h-screen bg-slate-50 dark:bg-[#050505] pb-32 pt-[calc(var(--safe-top)+20px)] px-6 transition-colors duration-300">
         <div className="flex justify-between items-center mb-8">
             <div>
-                <span className="text-[#6C5DD3] text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Command Center</span>
-                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">ПАНЕЛЬ <br/><span className="text-slate-400 dark:text-white/30">АДМИНА</span></h1>
-            </div>
-            <div className="w-12 h-12 bg-[#6C5DD3]/10 text-[#6C5DD3] rounded-2xl flex items-center justify-center text-2xl border border-[#6C5DD3]/20">
-                🛠️
-            </div>
-        </div>
-
-        {/* Content Area */}
-        <div>
-            {activeSubTab === 'OVERVIEW' && renderOverview()}
-            {activeSubTab === 'USERS' && renderUsers()}
-            {activeSubTab === 'COURSE' && renderCourse()}
-            {activeSubTab === 'MATERIALS' && renderContent()}
-            {activeSubTab === 'STREAMS' && renderContent()}
-            {activeSubTab === 'ARENA' && renderContent()}
-            {activeSubTab === 'CALENDAR' && renderCalendar()}
-            {activeSubTab === 'SETTINGS' && renderSettings()}
-            {activeSubTab === 'NEURAL_CORE' && renderNeuralCore()}
-            {activeSubTab === 'DATABASE' && renderDatabase()}
-            {activeSubTab === 'DEPLOY' && (
-                <div className="text-center py-20">
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Deploy Status: Ready</p>
-                </div>
-            )}
-        </div>
-    </div>
-  );
-};
+                <span className="text-[#6C5DD3

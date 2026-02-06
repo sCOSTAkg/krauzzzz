@@ -32,6 +32,7 @@ interface LessonViewProps {
   parentModule?: Module | null;
   userProgress: UserProgress;
   onUpdateUser: (data: Partial<UserProgress>) => void;
+  onUpdateLesson?: (updatedLesson: Lesson) => void;
 }
 
 export const LessonView: React.FC<LessonViewProps> = ({ 
@@ -41,7 +42,8 @@ export const LessonView: React.FC<LessonViewProps> = ({
   onBack, 
   parentModule,
   userProgress,
-  onUpdateUser
+  onUpdateUser,
+  onUpdateLesson
 }) => {
   const [inputText, setInputText] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -52,6 +54,14 @@ export const LessonView: React.FC<LessonViewProps> = ({
   // Question State
   const [questionText, setQuestionText] = useState('');
   const [isAsking, setIsAsking] = useState(false);
+
+  // Edit Mode State (Admin)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+      description: lesson.description,
+      homeworkTask: lesson.homeworkTask,
+      aiGradingInstruction: lesson.aiGradingInstruction
+  });
 
   // Video Player State
   const playerRef = useRef<any>(null);
@@ -81,6 +91,14 @@ export const LessonView: React.FC<LessonViewProps> = ({
         if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+      setEditData({
+          description: lesson.description,
+          homeworkTask: lesson.homeworkTask,
+          aiGradingInstruction: lesson.aiGradingInstruction
+      });
+  }, [lesson]);
 
   // Fullscreen event listener
   useEffect(() => {
@@ -154,6 +172,17 @@ export const LessonView: React.FC<LessonViewProps> = ({
     }
   };
 
+  const handleSaveEdit = () => {
+      if (onUpdateLesson) {
+          onUpdateLesson({
+              ...lesson,
+              ...editData
+          });
+          setIsEditing(false);
+          telegram.haptic('success');
+      }
+  };
+
   // Video Handlers
   const handlePlayPause = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -217,6 +246,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
   const hasVideo = !!videoUrl;
   
   const isSubmitDisabled = isSubmitting || (lesson.homeworkType === 'TEXT' ? !inputText.trim() : !selectedFile);
+  const isAdmin = userProgress.role === 'ADMIN';
 
   return (
     <div className="flex flex-col min-h-screen pb-32 w-full animate-slide-in bg-body text-text-primary transition-colors duration-300">
@@ -231,10 +261,55 @@ export const LessonView: React.FC<LessonViewProps> = ({
              <span className="text-[10px] font-black uppercase tracking-widest text-[#6C5DD3]">Урок</span>
              <span className="text-xs font-bold text-text-primary max-w-[200px] truncate">{lesson.title}</span>
         </div>
-        <div className="w-10"></div>
+        <div className="w-10 flex justify-end">
+            {isAdmin && (
+                <button onClick={() => setIsEditing(!isEditing)} className={`text-xs font-black uppercase ${isEditing ? 'text-[#6C5DD3]' : 'text-slate-400'}`}>
+                    {isEditing ? 'Close' : 'Edit'}
+                </button>
+            )}
+        </div>
       </div>
 
       <div className="px-4 md:px-6 max-w-2xl mx-auto w-full pt-6">
+        
+        {/* EDIT MODE PANEL */}
+        {isEditing && (
+            <div className="bg-[#1F2128] p-5 rounded-[2rem] border border-[#6C5DD3]/30 mb-6 space-y-4 animate-fade-in shadow-xl">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-white font-black uppercase text-sm">Редактирование Урока</h3>
+                    <button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase transition-colors">Сохранить</button>
+                </div>
+                
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Описание (Подзаголовок)</label>
+                    <input 
+                        value={editData.description}
+                        onChange={(e) => setEditData({...editData, description: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                    />
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Задание (Homework Task)</label>
+                    <textarea 
+                        value={editData.homeworkTask}
+                        onChange={(e) => setEditData({...editData, homeworkTask: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3] h-24 resize-none"
+                    />
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Инструкция для AI (Grading)</label>
+                    <textarea 
+                        value={editData.aiGradingInstruction}
+                        onChange={(e) => setEditData({...editData, aiGradingInstruction: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3] h-32 resize-none font-mono text-xs"
+                        placeholder="Критерии проверки..."
+                    />
+                </div>
+            </div>
+        )}
+
         {/* VIDEO PLAYER */}
         {hasVideo && (
             <div 
@@ -414,7 +489,9 @@ export const LessonView: React.FC<LessonViewProps> = ({
                </span>}
             </div>
 
-            <h2 className="text-2xl md:text-3xl font-black text-text-primary mb-6 leading-tight tracking-tight break-words">{lesson.title}</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-text-primary mb-2 leading-tight tracking-tight break-words">{lesson.title}</h2>
+            {/* Display description if present */}
+            {lesson.description && <p className="text-sm font-medium text-text-secondary mb-6">{lesson.description}</p>}
             
             <div className="markdown-content">
                 <ReactMarkdown

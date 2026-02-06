@@ -262,6 +262,21 @@ const App: React.FC = () => {
       setNotifications([]);
       addToast('info', 'История очищена');
   };
+  
+  const handleUpdateLesson = (updatedLesson: Lesson) => {
+      const updatedModules = modules.map(m => {
+          if (m.lessons.some(l => l.id === updatedLesson.id)) {
+              return {
+                  ...m,
+                  lessons: m.lessons.map(l => l.id === updatedLesson.id ? updatedLesson : l)
+              };
+          }
+          return m;
+      });
+      setModules(updatedModules);
+      Backend.saveCollection('modules', updatedModules);
+      addToast('success', 'Урок обновлен');
+  };
 
   // --- USER ACTIONS ---
 
@@ -316,6 +331,7 @@ const App: React.FC = () => {
                parentModule={activeModule}
                userProgress={userProgress}
                onUpdateUser={handleUpdateUser}
+               onUpdateLesson={handleUpdateLesson}
              />
            </div>
         ) : (

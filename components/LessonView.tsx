@@ -54,6 +54,9 @@ export const LessonView: React.FC<LessonViewProps> = ({
   // Edit Mode State (Admin)
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
+      id: lesson.id,
+      title: lesson.title,
+      xpReward: lesson.xpReward,
       description: lesson.description,
       homeworkTask: lesson.homeworkTask,
       aiGradingInstruction: lesson.aiGradingInstruction
@@ -67,11 +70,14 @@ export const LessonView: React.FC<LessonViewProps> = ({
 
   useEffect(() => {
       setEditData({
+          id: lesson.id,
+          title: lesson.title,
+          xpReward: lesson.xpReward,
           description: lesson.description,
           homeworkTask: lesson.homeworkTask,
           aiGradingInstruction: lesson.aiGradingInstruction
       });
-  }, [lesson.id, lesson.description, lesson.homeworkTask, lesson.aiGradingInstruction]);
+  }, [lesson]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -191,6 +197,35 @@ export const LessonView: React.FC<LessonViewProps> = ({
                     <button onClick={handleSaveEdit} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase transition-colors">Сохранить</button>
                 </div>
                 
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">ID Урока</label>
+                        <input 
+                            value={editData.id}
+                            onChange={(e) => setEditData({...editData, id: e.target.value})}
+                            className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Награда (XP)</label>
+                        <input 
+                            type="number"
+                            value={editData.xpReward}
+                            onChange={(e) => setEditData({...editData, xpReward: parseInt(e.target.value) || 0})}
+                            className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Название (Title)</label>
+                    <input 
+                        value={editData.title}
+                        onChange={(e) => setEditData({...editData, title: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
+                    />
+                </div>
+
                 <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Описание (Подзаголовок)</label>
                     <input 

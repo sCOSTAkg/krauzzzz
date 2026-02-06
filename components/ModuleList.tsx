@@ -54,7 +54,7 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                         relative w-full rounded-[2rem] md:rounded-[2.5rem] p-1 overflow-hidden transition-all duration-300 group select-none
                         ${shakingId === module.id ? 'animate-shake ring-2 ring-red-500/50' : ''}
                         ${isLocked 
-                            ? 'cursor-pointer hover:brightness-75' 
+                            ? 'cursor-pointer' 
                             : 'hover:scale-[1.01] active:scale-[0.98] cursor-pointer shadow-lg hover:shadow-xl shadow-[#6C5DD3]/10'}
                     `}
                 >
@@ -63,14 +63,23 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                     
                     {/* Locked Overlay / Tooltip */}
                     {isLocked && (
-                        <div className={`absolute inset-0 z-30 bg-black/60 backdrop-blur-[2px] flex items-center justify-center transition-opacity duration-300 ${lockedTooltipId === module.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <div className={`absolute inset-0 z-30 flex items-center justify-center transition-all duration-300 ${lockedTooltipId === module.id ? 'bg-black/80 backdrop-blur-sm' : 'bg-black/40 group-hover:bg-black/50'}`}>
                             {lockedTooltipId === module.id ? (
-                                <div className="bg-red-600 text-white px-4 py-2 rounded-xl shadow-2xl animate-scale-in">
-                                    <p className="text-[10px] font-black uppercase tracking-widest">Требуется {module.minLevel} Уровень</p>
+                                <div className="bg-red-600 text-white px-4 py-3 rounded-xl shadow-2xl animate-scale-in border border-red-400">
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="text-xl">⛔</span>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-center">Доступ закрыт</p>
+                                        <p className="text-[9px] font-bold opacity-90">Нужен {module.minLevel} уровень</p>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="bg-black/40 p-3 rounded-full border border-white/10 animate-pulse transform group-hover:scale-110 transition-transform">
-                                    <span className="text-2xl">🔒</span>
+                                <div className="flex flex-col items-center justify-center transition-transform duration-300 group-hover:scale-110 opacity-70 group-hover:opacity-100">
+                                    <div className="w-12 h-12 rounded-full bg-black/60 border border-white/10 flex items-center justify-center backdrop-blur-md mb-2">
+                                        <span className="text-2xl">🔒</span>
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-white/50 group-hover:text-white/80 transition-colors">
+                                        Lvl {module.minLevel}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -79,7 +88,7 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                     {/* Main Card Content */}
                     <div className={`
                         relative min-h-[12rem] h-auto rounded-[1.8rem] md:rounded-[2.3rem] overflow-hidden flex flex-col justify-end p-5 md:p-6 transition-all duration-500
-                        ${isLocked ? 'bg-[#0a0b0d] brightness-50 grayscale-[0.8] group-hover:grayscale-[0.5]' : 'bg-[#14161B]'}
+                        ${isLocked ? 'bg-[#0a0b0d] brightness-[0.4] grayscale group-hover:grayscale-[0.5] group-hover:brightness-[0.5]' : 'bg-[#14161B]'}
                     `}>
                         
                         {/* Background Image/Gradient */}
@@ -88,11 +97,7 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                         
                         {/* Status Badge */}
                         <div className="absolute top-4 right-4 md:top-5 md:right-5 z-10 transition-transform duration-300 group-hover:scale-110">
-                            {isLocked ? (
-                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-lg">
-                                    🔒
-                                </div>
-                            ) : (
+                            {!isLocked && (
                                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/20 text-white font-black text-[10px] md:text-xs">
                                     {progressPercent}%
                                 </div>
@@ -105,7 +110,6 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                                 <span className="px-2 py-0.5 rounded-md bg-black/30 backdrop-blur-md text-[8px] font-black uppercase tracking-widest text-white/80 border border-white/10">
                                     Модуль {index + 1}
                                 </span>
-                                {isLocked && <span className="px-2 py-0.5 rounded-md bg-red-500/80 text-[8px] font-black uppercase tracking-widest text-white animate-pulse">Lvl {module.minLevel}</span>}
                             </div>
                             
                             <h3 className="text-xl md:text-2xl font-black text-white leading-tight drop-shadow-lg max-w-[85%] break-words">

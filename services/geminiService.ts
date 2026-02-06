@@ -260,15 +260,7 @@ export const consultSystemAgent = async (
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        action: { type: Type.STRING, enum: ['OPTIMIZE_CONFIG', 'REWRITE_LESSON', 'CREATE_EVENT', 'FIX_USER_DATA', 'CLEAR_LOGS', 'SEND_NOTIFICATION', 'BALANCE_DIFFICULTY', 'NO_ACTION'] },
-                        reason: { type: Type.STRING },
-                        payload: { type: Type.OBJECT } // Generic object container
-                    },
-                    required: ["action", "reason", "payload"]
-                }
+                // responseSchema removed because 'payload' requires dynamic structure, which causes "empty object" errors in strict mode.
             }
         });
 

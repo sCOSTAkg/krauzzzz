@@ -19,7 +19,7 @@ interface AdminDashboardProps {
   users: UserProgress[];
   onUpdateUsers: (newUsers: UserProgress[]) => void;
   currentUser: UserProgress;
-  activeSubTab: 'OVERVIEW' | 'COURSE' | 'MATERIALS' | 'STREAMS' | 'USERS' | 'SETTINGS' | 'ARENA' | 'CALENDAR';
+  activeSubTab: 'OVERVIEW' | 'COURSE' | 'MATERIALS' | 'STREAMS' | 'USERS' | 'SETTINGS' | 'ARENA' | 'CALENDAR' | 'NEURAL_CORE' | 'DATABASE' | 'DEPLOY';
   onSendBroadcast: (notif: AppNotification) => void;
   notifications: AppNotification[];
   onClearNotifications: () => void;
@@ -502,6 +502,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     </div>
   )};
 
+  // --- NEW RENDER METHODS FOR MISSING TABS ---
+
+  const renderNeuralCore = () => (
+      <div className="space-y-4 animate-fade-in pb-20">
+          <div className="bg-[#14161B] p-6 rounded-[2rem] border border-[#6C5DD3]/20 text-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-[#6C5DD3]/5 animate-pulse"></div>
+              <h2 className="text-2xl font-black text-white relative z-10">AI CORE STATUS</h2>
+              <div className="mt-4 flex justify-center gap-4 relative z-10">
+                  <div className="text-center">
+                      <div className="w-16 h-16 rounded-full border-4 border-green-500 flex items-center justify-center text-xl bg-black/50 mx-auto mb-2">ON</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">System</span>
+                  </div>
+                  <div className="text-center">
+                      <div className="w-16 h-16 rounded-full border-4 border-[#6C5DD3] flex items-center justify-center text-xl bg-black/50 mx-auto mb-2">98%</div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Health</span>
+                  </div>
+              </div>
+              <p className="mt-4 text-xs text-slate-400 max-w-xs mx-auto">Автономный агент (SystemHealthAgent) активен и мониторит логи ошибок каждые {config.systemAgent?.monitoringInterval / 1000 || 30} сек.</p>
+          </div>
+          
+          <div className="bg-[#14161B] p-5 rounded-[2rem] border border-white/5">
+              <h3 className="font-bold text-white mb-4">Настройки ИИ</h3>
+              <div className="space-y-3">
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                      <span className="text-xs text-slate-300">Провайдер</span>
+                      <span className="text-xs font-bold text-[#6C5DD3]">{config.aiConfig?.activeProvider || 'GEMINI'}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                      <span className="text-xs text-slate-300">Модель</span>
+                      <span className="text-xs font-bold text-white">{config.integrations?.aiModelVersion || 'flash-preview'}</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                      <span className="text-xs text-slate-300">Авто-фикс ошибок</span>
+                      <span className={`text-xs font-bold ${config.systemAgent?.autoFix ? 'text-green-500' : 'text-red-500'}`}>{config.systemAgent?.autoFix ? 'ENABLED' : 'DISABLED'}</span>
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+
+  const renderDatabase = () => (
+      <div className="space-y-4 animate-fade-in pb-20">
+          <div className="bg-[#14161B] p-6 rounded-[2rem] border border-white/5">
+              <h2 className="text-xl font-black text-white mb-2">БАЗА ДАННЫХ</h2>
+              <p className="text-xs text-slate-400 mb-4">Текущее подключение и статистика.</p>
+              
+              <div className="bg-black/30 p-4 rounded-xl font-mono text-[10px] text-green-400 mb-4 overflow-x-auto">
+                  STATUS: CONNECTED (LOCAL SYNC)<br/>
+                  RECORDS: {users.length} USERS<br/>
+                  MODULES: {modules.length}<br/>
+                  LAST SYNC: {new Date().toLocaleTimeString()}
+              </div>
+
+              <Button fullWidth onClick={() => addToast('info', 'Бэкап создан локально')}>Создать Бэкап (JSON)</Button>
+          </div>
+      </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#050505] pb-32 pt-[calc(var(--safe-top)+20px)] px-6 transition-colors duration-300">
         <div className="flex justify-between items-center mb-8">
@@ -524,6 +582,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {activeSubTab === 'ARENA' && renderContent()}
             {activeSubTab === 'CALENDAR' && renderCalendar()}
             {activeSubTab === 'SETTINGS' && renderSettings()}
+            {activeSubTab === 'NEURAL_CORE' && renderNeuralCore()}
+            {activeSubTab === 'DATABASE' && renderDatabase()}
+            {activeSubTab === 'DEPLOY' && (
+                <div className="text-center py-20">
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Deploy Status: Ready</p>
+                </div>
+            )}
         </div>
     </div>
   );

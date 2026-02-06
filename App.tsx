@@ -359,7 +359,7 @@ const App: React.FC = () => {
                  />
               )}
               
-              {activeTab === Tab.ARENA && <SalesArena />}
+              {activeTab === Tab.ARENA && <SalesArena userProgress={userProgress} />}
               
               {activeTab === Tab.HABITS && (
                   <HabitTracker 
@@ -370,6 +370,7 @@ const App: React.FC = () => {
                       onXPEarned={handleXPEarned}
                       onBack={() => setActiveTab(Tab.HOME)}
                       setNavAction={setNavAction} // Pass action setter
+                      isAuthenticated={userProgress.isAuthenticated}
                   />
               )}
 

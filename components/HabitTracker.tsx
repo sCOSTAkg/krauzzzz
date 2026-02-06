@@ -12,12 +12,13 @@ interface HabitTrackerProps {
     onXPEarned: (amount: number) => void;
     onBack: () => void;
     setNavAction?: (action: SmartNavAction | null) => void;
+    isAuthenticated?: boolean;
 }
 
 type TabType = 'HABITS' | 'GOALS';
 
 export const HabitTracker: React.FC<HabitTrackerProps> = ({ 
-    habits, goals, onUpdateHabits, onUpdateGoals, onXPEarned, onBack, setNavAction 
+    habits, goals, onUpdateHabits, onUpdateGoals, onXPEarned, onBack, setNavAction, isAuthenticated 
 }) => {
     const [activeTab, setActiveTab] = useState<TabType>('HABITS');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,24 +44,28 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
     useEffect(() => {
         if (!setNavAction) return;
 
-        if (isModalOpen) {
-            setNavAction({
-                label: editingId ? 'СОХРАНИТЬ' : 'СОЗДАТЬ',
-                onClick: handleSave,
-                variant: 'success',
-                icon: '💾'
-            });
+        if (isAuthenticated) {
+            if (isModalOpen) {
+                setNavAction({
+                    label: editingId ? 'СОХРАНИТЬ' : 'СОЗДАТЬ',
+                    onClick: handleSave,
+                    variant: 'success',
+                    icon: '💾'
+                });
+            } else {
+                setNavAction({
+                    label: activeTab === 'HABITS' ? 'НОВАЯ ПРИВЫЧКА' : 'НОВАЯ ЦЕЛЬ',
+                    onClick: () => openModal(),
+                    variant: 'primary',
+                    icon: '+'
+                });
+            }
         } else {
-            setNavAction({
-                label: activeTab === 'HABITS' ? 'НОВАЯ ПРИВЫЧКА' : 'НОВАЯ ЦЕЛЬ',
-                onClick: () => openModal(),
-                variant: 'primary',
-                icon: '+'
-            });
+            setNavAction(null);
         }
 
         return () => { setNavAction(null); };
-    }, [activeTab, isModalOpen, formTitle, formTarget, formUnit, formIcon, formDescription, editingId]);
+    }, [activeTab, isModalOpen, formTitle, formTarget, formUnit, formIcon, formDescription, editingId, isAuthenticated]);
 
     // --- LOGIC ---
 
@@ -151,31 +156,7 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                     ? h.completedDates.filter(d => d !== date)
                     : [...h.completedDates, date];
                 
-                // Recalculate Streak
-                newDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-                let streak = 0;
-                let checkDate = new Date();
-                
-                if (newDates.includes(today)) {
-                    streak = 1;
-                    checkDate.setDate(checkDate.getDate() - 1);
-                } else {
-                    checkDate.setDate(checkDate.getDate() - 1);
-                }
-
-                // Check simple streak logic going backwards
-                let tempCheckDate = new Date();
-                if (!newDates.includes(today)) tempCheckDate.setDate(tempCheckDate.getDate() - 1);
-                
-                // Simplified loop for streak
-                let currentStreak = 0;
-                // ... (Logic simplified for demo)
-                
-                if (!isCompleted) {
-                    telegram.haptic('success');
-                    onXPEarned(XPService.calculateNotebookXP('HABIT'));
-                }
-                return { ...h, completedDates: newDates, streak: newDates.length }; // Temp streak = count for robustness in this demo
+                return { ...h, completedDates: newDates, streak: newDates.length }; // Streak logic simplified
             }
             return h;
         });
@@ -203,7 +184,6 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
                 if (!wasCompleted && isNowCompleted) {
                     telegram.haptic('success');
                     telegram.showAlert(`🏆 ЦЕЛЬ ДОСТИГНУТА: ${g.title}`, 'ЛЕГЕНДА');
-                    // Award Big XP
                     onXPEarned(500);
                 } else if (amount > 0) {
                     telegram.haptic('light');
@@ -216,7 +196,6 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
         onUpdateGoals(updated);
     };
 
-    // Calendar Days Generator
     const getCalendarDays = () => {
         const days = [];
         for (let i = -3; i <= 3; i++) {
@@ -227,6 +206,37 @@ export const HabitTracker: React.FC<HabitTrackerProps> = ({
         return days;
     };
     const calendarDays = getCalendarDays();
+
+    // --- TEASER RENDER IF NOT AUTHENTICATED ---
+    if (!isAuthenticated) {
+        return (
+            <div className="flex flex-col h-full bg-body text-text-primary animate-fade-in relative p-6">
+                <button onClick={onBack} className="w-10 h-10 rounded-2xl bg-surface border border-border-color flex items-center justify-center text-text-primary mb-6">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div className="text-center mb-8">
+                    <h2 className="text-3xl font-black text-text-primary uppercase tracking-tight">Трекер Дисциплины</h2>
+                    <p className="text-text-secondary text-sm mt-2">Развивай полезные привычки и ставь амбициозные цели.</p>
+                </div>
+                
+                {/* Blurred Demo Content */}
+                <div className="relative overflow-hidden rounded-[2.5rem] border border-border-color bg-surface h-[300px]">
+                    <div className="absolute inset-0 z-10 bg-body/20 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                        <div className="w-16 h-16 bg-[#6C5DD3] rounded-full flex items-center justify-center text-3xl mb-4 shadow-lg shadow-[#6C5DD3]/30">🔒</div>
+                        <h3 className="text-xl font-black text-text-primary uppercase mb-2">Доступ закрыт</h3>
+                        <p className="text-text-secondary text-xs mb-6">Авторизуйтесь, чтобы отслеживать свой прогресс и получать награды.</p>
+                        <button onClick={onBack} className="px-6 py-3 bg-[#6C5DD3] text-white rounded-xl font-black uppercase text-xs tracking-widest shadow-lg">Войти в профиль</button>
+                    </div>
+                    {/* Fake Data Background */}
+                    <div className="p-4 space-y-3 opacity-30 pointer-events-none filter blur-sm">
+                        <div className="bg-body h-20 rounded-2xl w-full"></div>
+                        <div className="bg-body h-20 rounded-2xl w-full"></div>
+                        <div className="bg-body h-20 rounded-2xl w-full"></div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full bg-body text-text-primary animate-fade-in relative">

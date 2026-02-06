@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ArenaScenario, ChatMessage } from '../types';
+import { ArenaScenario, ChatMessage, UserProgress } from '../types';
 import { createArenaSession, sendMessageToGemini, evaluateArenaBattle, getArenaHint } from '../services/geminiService';
 import { Storage } from '../services/storage';
 import { telegram } from '../services/telegramService';
@@ -33,7 +33,11 @@ export const SCENARIOS: ArenaScenario[] = [
     }
 ];
 
-export const SalesArena: React.FC = () => {
+interface SalesArenaProps {
+    userProgress?: UserProgress;
+}
+
+export const SalesArena: React.FC<SalesArenaProps> = ({ userProgress }) => {
     const [scenarios] = useState<ArenaScenario[]>(() => Storage.get<ArenaScenario[]>('scenarios', SCENARIOS));
     const [activeScenario, setActiveScenario] = useState<ArenaScenario | null>(null);
     const [chatSession, setChatSession] = useState<Chat | null>(null);
@@ -48,12 +52,18 @@ export const SalesArena: React.FC = () => {
     const [isHintLoading, setIsHintLoading] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const isAuthenticated = userProgress?.isAuthenticated;
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [history, isLoading, hint]);
 
     const startScenario = (scenario: ArenaScenario) => {
+        if (!isAuthenticated) {
+            telegram.haptic('error');
+            telegram.showAlert('Доступ к симулятору разрешен только авторизованным агентам.', 'Доступ Запрещен');
+            return;
+        }
         telegram.haptic('medium');
         setActiveScenario(scenario);
         const session = createArenaSession(scenario.clientRole, scenario.objective);
@@ -132,6 +142,16 @@ export const SalesArena: React.FC = () => {
                     <h1 className="text-4xl font-black text-text-primary tracking-tighter">АРЕНА <br/><span className="text-text-secondary opacity-30">СИМУЛЯЦИЙ</span></h1>
                 </div>
 
+                {!isAuthenticated && (
+                    <div className="bg-[#1F2128] border border-orange-500/30 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
+                        <div className="text-3xl">🔒</div>
+                        <div>
+                            <h3 className="text-white font-bold text-sm">Демо-режим</h3>
+                            <p className="text-white/50 text-xs">Войдите в профиль, чтобы начать бой.</p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid gap-4">
                     {scenarios.map(sc => (
                         <button 
@@ -147,6 +167,7 @@ export const SalesArena: React.FC = () => {
                                 }`}>
                                     {sc.difficulty}
                                 </span>
+                                {!isAuthenticated && <span className="text-xs">🔒</span>}
                             </div>
                             <h3 className="text-xl font-black text-text-primary mb-2 tracking-tight group-hover:text-[#6C5DD3] transition-colors">{sc.title}</h3>
                             <p className="text-text-secondary text-xs leading-relaxed font-medium line-clamp-2">{sc.objective}</p>

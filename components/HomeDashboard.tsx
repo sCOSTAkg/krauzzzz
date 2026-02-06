@@ -45,11 +45,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   };
 
   const handleCommandClick = (tab: Tab) => {
-      if (!isAuthenticated) {
-          telegram.haptic('error');
-          telegram.showAlert('Этот раздел доступен только авторизованным бойцам. Пройдите идентификацию.', 'Доступ закрыт');
-          return;
-      }
+      // Allow navigation for everyone (Teaser Mode)
       telegram.haptic('selection');
       onNavigate(tab);
   };
@@ -187,16 +183,16 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         className={`
                             relative bg-surface p-5 rounded-[2rem] text-left border 
                             hover:border-opacity-50 transition-all active:scale-95 group overflow-hidden shadow-sm animate-slide-up
-                            ${!isAuthenticated ? 'grayscale opacity-80 cursor-not-allowed border-border-color' : item.border}
+                            ${item.border}
                         `}
                         style={{ animationDelay: `${i*0.1}s` }}
                     >
                         {!isAuthenticated && (
-                            <div className="absolute top-4 right-4 z-20 opacity-50">
-                                <div className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-text-primary text-xs">🔒</div>
+                            <div className="absolute top-3 right-3 z-20">
+                                <span className="text-[10px] font-black uppercase text-text-secondary opacity-50 bg-body px-2 py-1 rounded-lg">Demo</span>
                             </div>
                         )}
-                        <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 ${isAuthenticated ? 'group-hover:opacity-100' : ''} transition-opacity duration-500`}></div>
+                        <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
                         
                         <div className="relative z-10 flex flex-col h-full justify-between min-h-[90px]">
                             <div className="flex justify-between items-start">

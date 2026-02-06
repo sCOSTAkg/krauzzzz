@@ -156,7 +156,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
   // Video Handlers
   const handlePlayPause = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!hasStarted) setHasStarted(true);
+    if (!hasStarted) setHasStarted(true); // Keep player mounted once started
     setPlaying(!playing);
   };
 
@@ -258,7 +258,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
                         volume={muted ? 0 : volume}
                         muted={muted}
                         controls={false}
-                        light={!hasStarted} // Only show light placeholder until first play
+                        light={!hasStarted} // Only show light placeholder until first play to prevent unmounting on pause
                         playIcon={
                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors cursor-pointer z-10">
                                 <div className="relative w-20 h-20 flex items-center justify-center">

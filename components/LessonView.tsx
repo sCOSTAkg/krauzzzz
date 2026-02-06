@@ -20,6 +20,19 @@ interface LessonViewProps {
   onUpdateLesson?: (updatedLesson: Lesson) => void;
 }
 
+// Markdown Helper Component
+const MarkdownToolbar = ({ onInsert }: { onInsert: (tag: string, placeholder?: string) => void }) => (
+    <div className="flex gap-2 mb-2 overflow-x-auto no-scrollbar pb-1">
+        <button onClick={() => onInsert('**', 'bold')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 font-bold">B</button>
+        <button onClick={() => onInsert('*', 'italic')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 italic">I</button>
+        <button onClick={() => onInsert('\n# ', 'Header')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">H1</button>
+        <button onClick={() => onInsert('\n## ', 'Header')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">H2</button>
+        <button onClick={() => onInsert('[', 'Link](url)')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">🔗</button>
+        <button onClick={() => onInsert('\n- ', 'List Item')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">List</button>
+        <button onClick={() => onInsert('`', 'code')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 font-mono">Code</button>
+    </div>
+);
+
 // Helper Component for Admin Sections
 const EditSection = ({ title, isOpen, onToggle, children, icon, colorClass = "text-white" }: any) => (
   <div className={`bg-[#16181D] border ${isOpen ? 'border-[#6C5DD3]/30' : 'border-white/5'} rounded-2xl overflow-hidden transition-all duration-300 shadow-sm`}>
@@ -123,6 +136,30 @@ export const LessonView: React.FC<LessonViewProps> = ({
       }
   };
 
+  const insertMarkdown = (tag: string, placeholder: string = '') => {
+      const textarea = document.getElementById('contentEditor') as HTMLTextAreaElement;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = editedLesson.content;
+      const before = text.substring(0, start);
+      const after = text.substring(end, text.length);
+      const selection = text.substring(start, end);
+
+      const newContent = before + tag + (selection || placeholder) + (tag.trim().length > 1 && !tag.startsWith('\n') ? tag : '') + after;
+      
+      setEditedLesson({
+          ...editedLesson,
+          content: newContent
+      });
+      
+      setTimeout(() => {
+          textarea.focus();
+          textarea.setSelectionRange(start + tag.length, end + tag.length);
+      }, 0);
+  };
+
   const videoUrl = lesson.videoUrl || parentModule?.videoUrl;
   const hasVideo = !!videoUrl;
 
@@ -188,12 +225,16 @@ export const LessonView: React.FC<LessonViewProps> = ({
                     isOpen={openSection === 'content'} 
                     onToggle={() => setOpenSection(openSection === 'content' ? 'homework' : 'content')}
                 >
-                    <textarea 
-                        value={editedLesson.content}
-                        onChange={(e) => setEditedLesson({...editedLesson, content: e.target.value})}
-                        className="w-full bg-[#1F2128] border border-white/10 p-4 rounded-xl text-sm font-mono text-white/90 outline-none focus:border-[#6C5DD3] h-[60vh] font-medium leading-relaxed resize-y focus:bg-black/40 transition-all"
-                        placeholder="# Заголовок\n\nОсновной текст урока..."
-                    />
+                    <div className="bg-[#1F2128] border border-white/10 rounded-xl p-2 focus-within:border-[#6C5DD3] transition-colors">
+                        <MarkdownToolbar onInsert={insertMarkdown} />
+                        <textarea 
+                            id="contentEditor"
+                            value={editedLesson.content}
+                            onChange={(e) => setEditedLesson({...editedLesson, content: e.target.value})}
+                            className="w-full bg-transparent text-sm font-mono text-white/90 outline-none h-[60vh] font-medium leading-relaxed resize-y focus:bg-black/20 p-2"
+                            placeholder="# Заголовок\n\nОсновной текст урока..."
+                        />
+                    </div>
                 </EditSection>
 
                 {/* 3. Homework & AI Section */}
@@ -252,7 +293,10 @@ export const LessonView: React.FC<LessonViewProps> = ({
                             <input 
                                 type="number"
                                 value={editedLesson.xpReward}
-                                onChange={(e) => setEditedLesson({...editedLesson, xpReward: parseInt(e.target.value) || 0})}
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    setEditedLesson({...editedLesson, xpReward: isNaN(val) ? 0 : val});
+                                }}
                                 className="w-full bg-[#1F2128] border border-yellow-500/20 p-4 rounded-xl text-xl font-black text-yellow-500 outline-none focus:border-yellow-500 text-center"
                             />
                         </div>

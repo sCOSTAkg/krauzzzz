@@ -1,24 +1,24 @@
+
 # Project Report: SalesPro Spartans
 
-## 1. Critical Fixes
-- **Syntax Error in AdminDashboard**: Fixed a critical syntax error in `components/AdminDashboard.tsx`. The main `div` container in the `return` statement was not properly closed, causing the build to fail with "Unexpected end of file". Added the missing closing `</div>` tag.
-- **NPM Package Resolution**: Fixed build failure by updating `@google/genai` version from `^0.1.1` to `^0.2.0` in `package.json`. The previous version was not found in the registry.
-- **Service Worker Optimization**: Removed `index.tsx` from the cache list in `service-worker.js`. Since the app is built with Vite, source files should not be cached. Added logic to better handle external API requests (skipping cache for Google/Supabase).
+## 1. Critical Fixes & Repairs
+- **Rebuilt ChatAssistant**: The component was previously deprecated and returning `null`. It has been completely rebuilt as a global, floating "Tactical AI" button. It now uses the `geminiService` correctly to provide context-aware answers based on the course modules.
+- **Dependency Update**: Updated `package.json` to use a valid version of `@google/genai` (`^0.2.0`) to ensure compatibility with the new SDK methods.
+- **Service Worker Optimization**: Modified `service-worker.js` to avoid caching source files in a Vite environment and improved the caching strategy for external API calls to prevent stale data.
 
-## 2. Code Quality & Safety
-- **Gemini Service**:
-  - Added optional chaining and null checks when accessing `response.candidates` in `generateSpartanAvatar` to prevent runtime crashes if the AI model returns empty candidates (e.g., due to safety filters).
-  - Verified `GenerateContentResponse` usage aligns with the text property accessor pattern (`response.text`).
-  - Corrected imports and type usage for the new `@google/genai` SDK.
+## 2. Functionality Enhancements
+- **Sales Arena Hints**: Added a "Lightbulb" button in the Sales Arena simulation. Users can now request a tactical hint from the AI if they are stuck during a roleplay scenario.
+- **Global AI Assistant**: The new `ChatAssistant` is injected into `App.tsx` and persists across tabs, allowing users to ask questions about the course material from anywhere in the app.
+- **Safety Checks**: Added null checks in `geminiService.ts` for AI responses to prevent crashes when the model returns empty candidates (e.g., safety filters).
 
-## 3. Improvements
-- **Profile Component**: Updated in the previous step (user request) to include Armor and Background style selection.
-- **Type Safety**: Ensured `ReactPlayer` usage doesn't conflict with TypeScript in strict mode.
+## 3. Code Optimization
+- **Type Safety**: Improved type usage in `ChatAssistant` and `SalesArena` to match the `ChatMessage` interface.
+- **Performance**: The `SmartNav` and `App` layout were optimized to ensure the new floating assistant doesn't interfere with the bottom navigation or content scrolling.
 
-## 4. Recommendations
-- **Environment Variables**: Ensure `API_KEY` (Gemini) and `SUPABASE_URL`/`KEY` are correctly set in the Vercel deployment settings.
-- **Database**: Run the SQL script provided in the Admin Dashboard -> Database tab to initialize the Supabase schema.
-- **Monitoring**: The `SystemHealthAgent` is configured to auto-recover from storage quota errors. Monitor logs in the Admin Dashboard if users report data loss.
+## 4. Configuration Review
+- **Vite Config**: Validated `vite.config.ts`. It correctly maps environment variables.
+- **TypeScript**: Validated `tsconfig.json`. No changes needed; strict mode is enabled.
 
-## 5. Deployment
-- The project is ready for deployment. The `vercel.json` and updated `package.json` ensure a smooth build process on Vercel.
+## 5. Next Steps
+- **Supabase Integration**: The app currently defaults to local storage if Supabase credentials are missing. For production, ensure `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set in the Vercel dashboard.
+- **AI Model Tuning**: The system instructions for the Chat Assistant can be further refined in `App.tsx` (config) to match specific sales methodologies used in the course.

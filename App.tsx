@@ -18,6 +18,7 @@ import { NotebookView } from './components/NotebookView';
 import { MaterialsView } from './components/MaterialsView';
 import { StreamsView } from './components/StreamsView';
 import { SystemHealthAgent } from './components/SystemHealthAgent';
+import { ChatAssistant } from './components/ChatAssistant';
 import { Backend } from './services/backendService';
 import { XPService } from './services/xpService';
 
@@ -30,7 +31,7 @@ const DEFAULT_CONFIG: AppConfig = {
       telegramBotToken: '', 
       googleDriveFolderId: '', 
       crmWebhookUrl: '', 
-      aiModelVersion: 'gemini-1.5-pro',
+      aiModelVersion: 'gemini-3-flash-preview',
       supabaseUrl: "https://ijyktbybtsxkknxexftf.supabase.co",
       supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqeWt0YnlidHN4a2tueGV4ZnRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5NTAxMTUsImV4cCI6MjA4NTUyNjExNX0.ks8PXhkJDUaiey4CQahf2jl_-Mo_WaDeDtwtNlttYcI"
   },
@@ -233,6 +234,9 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden">
       
       <SystemHealthAgent config={appConfig.systemAgent} />
+
+      {/* Global AI Assistant */}
+      <ChatAssistant />
 
       <div className="fixed top-[var(--safe-top)] left-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => <Toast key={t.id} toast={t} onRemove={removeToast} />)}

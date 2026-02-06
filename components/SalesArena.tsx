@@ -42,13 +42,16 @@ export const SalesArena: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [battleResult, setBattleResult] = useState<string | null>(null);
     const [isEvaluating, setIsEvaluating] = useState(false);
-    const [typingHint, setTypingHint] = useState<string | null>(null);
+    
+    // Hint State
+    const [hint, setHint] = useState<string | null>(null);
+    const [isHintLoading, setIsHintLoading] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [history, isLoading]);
+    }, [history, isLoading, hint]);
 
     const startScenario = (scenario: ArenaScenario) => {
         telegram.haptic('medium');
@@ -62,6 +65,7 @@ export const SalesArena: React.FC = () => {
             timestamp: new Date().toISOString()
         }]);
         setBattleResult(null);
+        setHint(null);
     };
 
     const handleSend = async () => {
@@ -75,6 +79,7 @@ export const SalesArena: React.FC = () => {
         const updatedHistory = [...history, userMsg];
         setHistory(updatedHistory);
         setInputText('');
+        setHint(null); // Clear hint on send
         setIsLoading(true);
         telegram.haptic('light');
 
@@ -86,6 +91,27 @@ export const SalesArena: React.FC = () => {
             timestamp: new Date().toISOString()
         }]);
         setIsLoading(false);
+    };
+
+    const handleGetHint = async () => {
+        if (!activeScenario || isHintLoading) return;
+        
+        setIsHintLoading(true);
+        telegram.haptic('selection');
+        
+        // Find last client message
+        const lastClientMsg = [...history].reverse().find(m => m.role === 'model')?.text || '';
+        
+        const hintText = await getArenaHint(
+            activeScenario.clientRole, 
+            activeScenario.objective, 
+            lastClientMsg, 
+            inputText // Pass what user has typed so far
+        );
+        
+        setHint(hintText || 'Действуй по ситуации, боец!');
+        setIsHintLoading(false);
+        telegram.haptic('medium');
     };
 
     const finishBattle = async () => {
@@ -109,7 +135,7 @@ export const SalesArena: React.FC = () => {
                         <button 
                             key={sc.id} 
                             onClick={() => startScenario(sc)}
-                            className="bg-surface border border-border-color rounded-[2.5rem] p-6 text-left group transition-all active:scale-[0.98] relative overflow-hidden shadow-sm"
+                            className="bg-surface border border-border-color rounded-[2.5rem] p-6 text-left group transition-all active:scale-[0.98] relative overflow-hidden shadow-sm hover:shadow-lg"
                         >
                             <div className="absolute top-0 right-0 p-6 text-5xl opacity-5 grayscale group-hover:grayscale-0 group-hover:opacity-20 transition-all group-hover:scale-110">⚔️</div>
                             <div className="flex justify-between items-start mb-4">
@@ -158,6 +184,7 @@ export const SalesArena: React.FC = () => {
                         </div>
                     </div>
                 ))}
+                
                 {isLoading && (
                     <div className="flex justify-start">
                         <div className="bg-white/5 border border-white/10 p-4 rounded-2xl rounded-tl-sm animate-pulse">
@@ -169,18 +196,36 @@ export const SalesArena: React.FC = () => {
                         </div>
                     </div>
                 )}
+                
+                {hint && (
+                    <div className="flex justify-center animate-slide-up">
+                        <div className="bg-[#FFAB7B]/10 border border-[#FFAB7B]/30 text-[#FFAB7B] px-5 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 max-w-[90%] backdrop-blur-md">
+                            <span>💡</span>
+                            {hint}
+                        </div>
+                    </div>
+                )}
+                
                 <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}
             <div className="p-6 bg-black/60 backdrop-blur-2xl border-t border-white/5 relative z-20">
                 <div className="max-w-2xl mx-auto flex gap-3">
+                    <button 
+                        onClick={handleGetHint}
+                        disabled={isHintLoading}
+                        className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-xl hover:bg-white/10 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                        {isHintLoading ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div> : '💡'}
+                    </button>
+                    
                     <input 
                         value={inputText}
                         onChange={e => setInputText(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSend()}
                         placeholder="Ваша реплика..."
-                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold focus:border-[#6C5DD3] outline-none transition-all"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold focus:border-[#6C5DD3] outline-none transition-all placeholder:text-white/20"
                     />
                     <button onClick={handleSend} className="w-14 h-14 bg-[#6C5DD3] rounded-2xl flex items-center justify-center shadow-lg shadow-[#6C5DD3]/20 active:scale-95 transition-all">
                         <svg className="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>

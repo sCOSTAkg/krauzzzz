@@ -42,8 +42,9 @@ const DEFAULT_CONFIG: AppConfig = {
   systemAgent: {
       enabled: true,
       autoFix: true,
-      monitoringInterval: 15000,
-      sensitivity: 'HIGH'
+      monitoringInterval: 20000,
+      sensitivity: 'HIGH',
+      autonomyLevel: 'FULL_AUTO'
   }
 };
 
@@ -336,7 +337,19 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden">
       
-      <SystemHealthAgent config={appConfig.systemAgent} />
+      {/* 
+        AUTONOMOUS SYSTEM AGENT 
+        Now injected with the ability to modify the app state directly
+      */}
+      <SystemHealthAgent 
+          config={appConfig.systemAgent} 
+          user={userProgress}
+          appConfig={appConfig}
+          modules={modules}
+          onUpdateConfig={handleUpdateConfig}
+          onUpdateModules={handleUpdateModules}
+          onSendNotification={handleSendBroadcast}
+      />
 
       <div className="fixed top-[var(--safe-top)] left-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => <Toast key={t.id} toast={t} onRemove={removeToast} onClick={() => handleNavigate(t.link)} />)}

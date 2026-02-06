@@ -168,8 +168,9 @@ export interface AIConfig {
 export interface SystemAgentConfig {
     enabled: boolean;
     autoFix: boolean; 
-    monitoringInterval: number;
+    monitoringInterval: number; // ms
     sensitivity: 'LOW' | 'HIGH';
+    autonomyLevel: 'PASSIVE' | 'SUGGEST' | 'FULL_AUTO'; // New: How much power the agent has
 }
 
 export interface AppConfig {
@@ -230,4 +231,21 @@ export interface ArenaScenario {
   clientRole: string;
   objective: string;
   initialMessage: string;
+}
+
+// --- AGENT ACTIONS ---
+export type AgentActionType = 
+    | 'OPTIMIZE_CONFIG' 
+    | 'REWRITE_LESSON' 
+    | 'CREATE_EVENT' 
+    | 'FIX_USER_DATA' 
+    | 'CLEAR_LOGS' 
+    | 'SEND_NOTIFICATION'
+    | 'BALANCE_DIFFICULTY'
+    | 'NO_ACTION';
+
+export interface AgentDecision {
+    action: AgentActionType;
+    reason: string;
+    payload: any; // Dynamic payload based on action
 }

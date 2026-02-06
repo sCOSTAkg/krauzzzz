@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Chat, GenerateContentResponse, Type } from "@google/genai";
+import { AppConfig, UserProgress, Module, AgentDecision } from '../types';
 
 const DEFAULT_SYSTEM_INSTRUCTION = `
 Ты — Командир элитного отряда продаж "300 Спартанцев".
@@ -206,6 +207,77 @@ export const checkHomeworkWithAI = async (
       };
     }
   };
+
+// --- AUTONOMOUS AGENT CORE ---
+
+export const consultSystemAgent = async (
+    logs: any[],
+    config: AppConfig,
+    userStats: UserProgress,
+    modules: Module[]
+): Promise<AgentDecision> => {
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        // Lightweight snapshot of content quality
+        const contentSnapshot = modules.map(m => ({
+            id: m.id,
+            lessonCount: m.lessons.length,
+            // Check if descriptions are too short or generic
+            lessonsToImprove: m.lessons.filter(l => l.description.length < 30 || l.content.length < 100).map(l => l.id)
+        }));
+
+        const prompt = `
+        ROLE: You are the Autonomous System Core of "SalesPro: 300 Spartans".
+        GOAL: Maintain system health, optimize content, and keep the user engaged. You have FULL ACCESS to modify the app.
+
+        CURRENT STATE:
+        - Logs (Errors): ${JSON.stringify(logs.filter(l => l.level === 'ERROR').slice(0, 3))}
+        - App Config: Maintenance=${config.features.maintenanceMode}, AutoApprove=${config.features.autoApproveHomework}
+        - User: XP=${userStats.xp}, Level=${userStats.level}, Role=${userStats.role}
+        - Content Health: ${JSON.stringify(contentSnapshot)}
+
+        AVAILABLE ACTIONS:
+        1. REWRITE_LESSON: If a lesson has a short description/content, rewrite it to be epic and educational.
+        2. OPTIMIZE_CONFIG: If user level > 5 and 'publicLeaderboard' is false, enable it. If errors > 5, enable maintenanceMode.
+        3. SEND_NOTIFICATION: If user hasn't logged in a while (check date manually not possible here, assume active), or just to encourage them.
+        4. CLEAR_LOGS: If too many error logs.
+        5. NO_ACTION: If everything looks good.
+
+        LOGIC:
+        - Priority 1: Fix Errors (Clear logs or Maint mode).
+        - Priority 2: Improve Content (If lessonsToImprove has items, pick ONE and rewrite description/content).
+        - Priority 3: Engagement (Notification).
+
+        RETURN JSON ONLY matching 'AgentDecision' interface.
+        For REWRITE_LESSON, payload must be: { moduleId: string, lessonId: string, newDescription: string, newContent: string (Markdown) }
+        For OPTIMIZE_CONFIG, payload: Partial<AppConfig>
+        For SEND_NOTIFICATION, payload: AppNotification
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-pro-preview', // Smartest model for complex logic
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        action: { type: Type.STRING, enum: ['OPTIMIZE_CONFIG', 'REWRITE_LESSON', 'CREATE_EVENT', 'FIX_USER_DATA', 'CLEAR_LOGS', 'SEND_NOTIFICATION', 'BALANCE_DIFFICULTY', 'NO_ACTION'] },
+                        reason: { type: Type.STRING },
+                        payload: { type: Type.OBJECT } // Generic object container
+                    },
+                    required: ["action", "reason", "payload"]
+                }
+            }
+        });
+
+        return JSON.parse(response.text || '{ "action": "NO_ACTION", "reason": "AI Failed", "payload": {} }');
+    } catch (e) {
+        console.error('System Agent Error:', e);
+        return { action: 'NO_ACTION', reason: 'Error in agent brain', payload: {} };
+    }
+};
 
 export const verifyStoryScreenshot = async (base64Image: string): Promise<boolean> => {
     try {

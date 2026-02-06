@@ -1,24 +1,24 @@
 
-# Project Report: SalesPro Spartans
+# Project Report: SalesPro Spartans v5.2
 
 ## 1. Critical Fixes & Repairs
-- **Rebuilt ChatAssistant**: The component was previously deprecated and returning `null`. It has been completely rebuilt as a global, floating "Tactical AI" button. It now uses the `geminiService` correctly to provide context-aware answers based on the course modules.
-- **Dependency Update**: Updated `package.json` to use a valid version of `@google/genai` (`^0.2.0`) to ensure compatibility with the new SDK methods.
-- **Service Worker Optimization**: Modified `service-worker.js` to avoid caching source files in a Vite environment and improved the caching strategy for external API calls to prevent stale data.
+- **Role Synchronization Fix**: Resolved a critical issue where an Admin updating another user's role would inadvertently overwrite their own local session data. The `Backend.saveUser` method now strictly updates the database or mock DB, while session persistence is handled safely by `App.tsx`.
+- **Local Fallback Sync**: Enhanced `Backend.syncUser` to correctly synchronize critical fields (Role, XP, Level) from the local "mock DB" (`allUsers`) when Supabase is not configured. This ensures that Admin actions (like promoting a user) take effect immediately in the demo environment.
+- **Dependency Update**: Confirmed usage of `@google/genai` `^0.2.0` and ensured compatibility with the latest API methods.
 
 ## 2. Functionality Enhancements
-- **Sales Arena Hints**: Added a "Lightbulb" button in the Sales Arena simulation. Users can now request a tactical hint from the AI if they are stuck during a roleplay scenario.
-- **Global AI Assistant**: The new `ChatAssistant` is injected into `App.tsx` and persists across tabs, allowing users to ask questions about the course material from anywhere in the app.
-- **Safety Checks**: Added null checks in `geminiService.ts` for AI responses to prevent crashes when the model returns empty candidates (e.g., safety filters).
+- **Restored AI Commander**: Re-implemented the `ChatAssistant` component as a global, floating "Tactical AI" button available on all screens. It provides context-aware advice using the `gemini-3-flash-preview` model.
+- **Auto-Sync System**: Implemented a polling mechanism in `App.tsx` that checks for global configuration changes, new notifications, and user role updates every 10 seconds. This ensures "Maintenance Mode" or role promotions apply without a page refresh.
+- **Sales Arena Hints**: Added a "Lightbulb" button in the Sales Arena simulation to provide tactical hints from the AI during roleplay.
 
 ## 3. Code Optimization
-- **Type Safety**: Improved type usage in `ChatAssistant` and `SalesArena` to match the `ChatMessage` interface.
-- **Performance**: The `SmartNav` and `App` layout were optimized to ensure the new floating assistant doesn't interfere with the bottom navigation or content scrolling.
+- **Type Safety**: Improved type handling in `geminiService.ts` to prevent crashes when AI returns empty candidates or unexpected JSON structures.
+- **Performance**: Optimized the `App` layout to render `SystemHealthAgent` and `ChatAssistant` efficiently without blocking the main UI thread.
 
 ## 4. Configuration Review
-- **Vite Config**: Validated `vite.config.ts`. It correctly maps environment variables.
-- **TypeScript**: Validated `tsconfig.json`. No changes needed; strict mode is enabled.
+- **Vite Config**: Verified `vite.config.ts` environment variable mapping.
+- **TypeScript**: Validated `tsconfig.json` settings.
 
 ## 5. Next Steps
-- **Supabase Integration**: The app currently defaults to local storage if Supabase credentials are missing. For production, ensure `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set in the Vercel dashboard.
-- **AI Model Tuning**: The system instructions for the Chat Assistant can be further refined in `App.tsx` (config) to match specific sales methodologies used in the course.
+- **Supabase Integration**: For production, configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the hosting environment variables.
+- **Real-time DB**: Consider using Supabase Realtime subscriptions instead of polling for lower latency in the future.

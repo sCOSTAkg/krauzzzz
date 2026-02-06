@@ -18,6 +18,7 @@ import { NotebookView } from './components/NotebookView';
 import { MaterialsView } from './components/MaterialsView';
 import { StreamsView } from './components/StreamsView';
 import { SystemHealthAgent } from './components/SystemHealthAgent';
+import { ChatAssistant } from './components/ChatAssistant';
 import { Backend } from './services/backendService';
 import { XPService } from './services/xpService';
 
@@ -117,9 +118,16 @@ const App: React.FC = () => {
           // 3. Sync User Role (Check if admin changed my role)
           if (userProgress.isAuthenticated) {
               const freshUser = await Backend.syncUser(userProgress);
-              if (freshUser.role !== userProgress.role) {
-                  setUserProgress(prev => ({ ...prev, role: freshUser.role }));
-                  addToast('info', `Ваша роль обновлена: ${freshUser.role}`);
+              if (freshUser.role !== userProgress.role || freshUser.level !== userProgress.level || Math.abs(freshUser.xp - userProgress.xp) > 50) {
+                  setUserProgress(prev => ({ 
+                      ...prev, 
+                      role: freshUser.role,
+                      level: freshUser.level,
+                      xp: freshUser.xp
+                  }));
+                  if (freshUser.role !== userProgress.role) {
+                      addToast('info', `Ваша роль обновлена: ${freshUser.role}`);
+                  }
               }
           }
       };
@@ -130,7 +138,7 @@ const App: React.FC = () => {
       // Poll every 10 seconds
       const interval = setInterval(syncData, 10000);
       return () => clearInterval(interval);
-  }, [userProgress.isAuthenticated, appConfig]); // Dependencies slightly loose to allow background polling
+  }, [userProgress.isAuthenticated, appConfig]);
 
   // --- THEME & PERSISTENCE ---
   useEffect(() => {
@@ -211,7 +219,7 @@ const App: React.FC = () => {
       const meInList = newUsers.find(u => u.telegramId === userProgress.telegramId);
       if (meInList) {
           // If critical fields changed, update local session
-          if (meInList.role !== userProgress.role || meInList.level !== userProgress.level) {
+          if (meInList.role !== userProgress.role || meInList.level !== userProgress.level || meInList.xp !== userProgress.xp) {
               setUserProgress(prev => ({
                   ...prev,
                   role: meInList.role,
@@ -265,6 +273,8 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden">
       
       <SystemHealthAgent config={appConfig.systemAgent} />
+      {/* Global Chat Assistant (Floating) */}
+      <ChatAssistant />
 
       <div className="fixed top-[var(--safe-top)] left-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
         {toasts.map(t => <Toast key={t.id} toast={t} onRemove={removeToast} />)}

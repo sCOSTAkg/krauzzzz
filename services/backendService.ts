@@ -57,9 +57,28 @@ class BackendService {
     const remoteVer = allUsers.find(u => u.telegramId === localUser.telegramId || (u.telegramUsername && u.telegramUsername === localUser.telegramUsername));
     
     if (remoteVer) {
-        // If the 'remote' (stored in allUsers) has a different role, sync it to current session
+        // If the 'remote' (stored in allUsers) has newer data, sync critical fields
+        // This allows admin updates (Role, Level reset) to propagate to the session
+        let needsUpdate = false;
+        const updates: Partial<UserProgress> = {};
+
         if (remoteVer.role !== localUser.role) {
-            return { ...localUser, role: remoteVer.role };
+            updates.role = remoteVer.role;
+            needsUpdate = true;
+        }
+        if (remoteVer.level !== localUser.level) {
+            updates.level = remoteVer.level;
+            updates.xp = remoteVer.xp; // Sync XP if level changed (likely reset)
+            needsUpdate = true;
+        }
+        // Also sync XP if it's significantly different (e.g. admin bonus)
+        if (Math.abs(remoteVer.xp - localUser.xp) > 100) {
+             updates.xp = remoteVer.xp;
+             needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            return { ...localUser, ...updates };
         }
     }
 

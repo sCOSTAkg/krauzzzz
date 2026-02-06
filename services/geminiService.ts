@@ -316,7 +316,7 @@ export const generateSpartanAvatar = async (
       },
       config: {
           imageConfig: {
-              aspectRatio: "1:1" // Changed to 1:1 as it's an avatar
+              aspectRatio: "1:1"
           }
       }
     });

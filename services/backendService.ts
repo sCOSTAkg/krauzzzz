@@ -4,16 +4,17 @@ import { UserProgress, Module, Material, Stream, CalendarEvent, ArenaScenario, A
 import { Logger } from './logger';
 import { COURSE_MODULES, MOCK_EVENTS, MOCK_MATERIALS, MOCK_STREAMS } from '../constants';
 import { SCENARIOS } from '../components/SalesArena';
+import { airtable } from './airtableService';
 
 type ContentTable = 'modules' | 'materials' | 'streams' | 'events' | 'scenarios' | 'notifications' | 'app_settings';
 
 const SYNC_CHANNEL_NAME = 'salespro_sync_channel';
 
 /**
- * BACKEND SERVICE (Enhanced for Local Sync)
- * 
- * Uses BroadcastChannel to instantly synchronize state across tabs/windows.
- * Simulates a real-time backend connection.
+ * BACKEND SERVICE
+ * Now integrates with Airtable for the Users table (CRM).
+ * Other content (static) is still synced via BroadcastChannel/LocalStorage for this version,
+ * but Users/Habits are persistent in the Cloud.
  */
 class BackendService {
   private channel: BroadcastChannel;
@@ -30,7 +31,7 @@ class BackendService {
   public onSync(callback: () => void) {
       this.channel.onmessage = (event) => {
           if (event.data && event.data.type === 'SYNC_UPDATE') {
-              Logger.info('Backend: Received sync signal from another tab');
+              // Logger.info('Backend: Received sync signal from another tab');
               callback();
           }
       };
@@ -40,41 +41,46 @@ class BackendService {
       this.channel.postMessage({ type: 'SYNC_UPDATE', timestamp: Date.now() });
   }
   
-  // --- USER SYNC ---
+  // --- USER SYNC (AIRTABLE INTEGRATION) ---
 
   async syncUser(localUser: UserProgress): Promise<UserProgress> {
-    const allUsers = Storage.get<UserProgress[]>('allUsers', []);
-    const remoteVer = allUsers.find(u => u.telegramId === localUser.telegramId || (u.telegramUsername && u.telegramUsername === localUser.telegramUsername));
-    
-    if (remoteVer) {
-        let needsUpdate = false;
-        const updates: Partial<UserProgress> = {};
-
-        // Role Authority: DB is always right
-        if (remoteVer.role !== localUser.role) {
-            updates.role = remoteVer.role;
-            needsUpdate = true;
+    // 1. Try Airtable first
+    try {
+        const remoteUser = await airtable.syncUser(localUser);
+        
+        // If the remote user returned is different (newer) than what we had, update cache
+        if (remoteUser.lastSyncTimestamp && localUser.lastSyncTimestamp && remoteUser.lastSyncTimestamp > localUser.lastSyncTimestamp) {
+            Logger.info('Backend: Remote data is newer, updating local cache.');
+            this.updateLocalUserCache(remoteUser);
+            return remoteUser;
         }
         
-        // Admin force update override logic (if needed)
-        // For now, we trust local progress unless remote is significantly different (e.g., reset)
-        if (remoteVer.xp === 0 && localUser.xp > 0) {
-             updates.xp = 0;
-             updates.level = 1;
-             needsUpdate = true;
-        }
-
-        if (needsUpdate) {
-            return { ...localUser, ...updates };
-        }
-    } else {
-        await this.saveUser(localUser);
+        return localUser; // Return local if it was newer or equal
+    } catch (e) {
+        Logger.warn('Backend: Airtable sync failed, falling back to LocalStorage', e);
+        // Fallback: LocalStorage logic
+        await this.saveUserLocal(localUser);
+        return localUser;
     }
-
-    return localUser;
   }
 
   async saveUser(user: UserProgress) {
+      // 1. Mark as updated NOW
+      const updatedUser = { ...user, lastSyncTimestamp: Date.now() };
+
+      // 2. Optimistic Update: Save local first
+      await this.saveUserLocal(updatedUser);
+      
+      // 3. Async: Push to Airtable
+      airtable.syncUser(updatedUser).then((synced) => {
+          if (synced.airtableRecordId !== updatedUser.airtableRecordId) {
+              // Update local again if we got a new ID (first create)
+              this.saveUserLocal(synced);
+          }
+      }).catch(err => console.error("Background sync failed", err));
+  }
+
+  private async saveUserLocal(user: UserProgress) {
     const allUsers = Storage.get<UserProgress[]>('allUsers', []);
     const idx = allUsers.findIndex(u => u.telegramId === user.telegramId);
     const newAllUsers = [...allUsers];
@@ -87,6 +93,15 @@ class BackendService {
     
     Storage.set('allUsers', newAllUsers);
     this.notifySync(); 
+  }
+
+  private updateLocalUserCache(user: UserProgress) {
+      const allUsers = Storage.get<UserProgress[]>('allUsers', []);
+      const idx = allUsers.findIndex(u => u.telegramId === user.telegramId);
+      if (idx !== -1) {
+          allUsers[idx] = user;
+          Storage.set('allUsers', allUsers);
+      }
   }
 
   // --- GLOBAL CONFIG SYNC ---
@@ -142,9 +157,19 @@ class BackendService {
       this.notifySync();
   }
 
-  // --- USER MANAGEMENT ---
+  // --- USER MANAGEMENT (CRM) ---
 
   async getLeaderboard(): Promise<UserProgress[]> {
+     // Fetch from Airtable for Admin/Leaderboard
+     try {
+         const users = await airtable.getAllUsers();
+         if (users.length > 0) {
+             Storage.set('allUsers', users); // Cache it
+             return users;
+         }
+     } catch (e) {
+         Logger.warn('Failed to fetch leaderboard from Airtable');
+     }
      return Storage.get<UserProgress[]>('allUsers', []);
   }
 }

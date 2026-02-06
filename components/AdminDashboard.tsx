@@ -59,6 +59,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [systemInstruction, setSystemInstruction] = useState(config.systemInstruction);
   const [selectedProvider, setSelectedProvider] = useState<AIProviderId>(config.aiConfig?.activeProvider || 'GOOGLE_GEMINI');
   const [apiKeys, setApiKeys] = useState(config.aiConfig?.apiKeys || {});
+  
+  // Airtable Config State
+  const [airtableConfig, setAirtableConfig] = useState({
+      pat: config.integrations.airtablePat || '',
+      baseId: config.integrations.airtableBaseId || '',
+      tableName: config.integrations.airtableTableName || 'Users'
+  });
 
   // Course Editing State
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null);
@@ -93,6 +100,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       telegram.haptic('success');
       addToast('success', 'Конфигурация ИИ сохранена');
   };
+  
+  const handleSaveAirtableConfig = () => {
+      onUpdateConfig({
+          ...config,
+          integrations: {
+              ...config.integrations,
+              airtablePat: airtableConfig.pat,
+              airtableBaseId: airtableConfig.baseId,
+              airtableTableName: airtableConfig.tableName
+          }
+      });
+      telegram.haptic('success');
+      addToast('success', 'Настройки Airtable обновлены');
+  };
 
   const handleDeleteModule = (id: string, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -110,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
            return;
       }
 
-      const newRole = user.role === 'ADMIN' ? 'STUDENT' : 'ADMIN';
+      const newRole: UserRole = user.role === 'ADMIN' ? 'STUDENT' : 'ADMIN';
       
       // Confirmation Dialog
       if (!window.confirm(`Вы уверены, что хотите назначить пользователю ${user.name} роль ${newRole}?`)) {
@@ -530,6 +551,69 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              <div className="space-y-6 animate-slide-up">
                  <div className="bg-surface border border-border-color p-6 rounded-[2.5rem]">
                      <h3 className="font-bold text-text-primary mb-6">Конфигурация Приложения</h3>
+                     
+                     <div className="space-y-4 mb-6">
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Название Проекта</label>
+                             <input 
+                                 value={config.appName}
+                                 onChange={(e) => onUpdateConfig({...config, appName: e.target.value})}
+                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-bold outline-none focus:border-[#6C5DD3]"
+                             />
+                         </div>
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Основной Цвет</label>
+                             <div className="flex gap-2">
+                                <input 
+                                    type="color"
+                                    value={config.primaryColor}
+                                    onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})}
+                                    className="w-10 h-10 rounded-xl border-0 p-0 overflow-hidden cursor-pointer"
+                                />
+                                <input 
+                                    value={config.primaryColor}
+                                    onChange={(e) => onUpdateConfig({...config, primaryColor: e.target.value})}
+                                    className="flex-1 bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                                />
+                             </div>
+                         </div>
+                     </div>
+                     
+                     {/* AIRTABLE CONFIG */}
+                     <div className="space-y-4 mb-6 pt-6 border-t border-border-color">
+                         <h4 className="text-xs font-black uppercase text-[#6C5DD3]">Airtable Sync (Optional)</h4>
+                         
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Base ID</label>
+                             <input 
+                                 value={airtableConfig.baseId}
+                                 onChange={(e) => setAirtableConfig({...airtableConfig, baseId: e.target.value})}
+                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                                 placeholder="app..."
+                             />
+                         </div>
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Table Name</label>
+                             <input 
+                                 value={airtableConfig.tableName}
+                                 onChange={(e) => setAirtableConfig({...airtableConfig, tableName: e.target.value})}
+                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                                 placeholder="Users"
+                             />
+                         </div>
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Personal Access Token</label>
+                             <input 
+                                 type="password"
+                                 value={airtableConfig.pat}
+                                 onChange={(e) => setAirtableConfig({...airtableConfig, pat: e.target.value})}
+                                 className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                                 placeholder="pat..."
+                             />
+                         </div>
+                         <Button onClick={handleSaveAirtableConfig} fullWidth variant="secondary" className="!mt-2 !py-3">Сохранить Airtable</Button>
+                     </div>
+
                      <div className="space-y-4">
                          <div className="flex items-center justify-between">
                              <div>

@@ -14,6 +14,8 @@ import { SCENARIOS, SalesArena } from './components/SalesArena';
 import { NotebookView } from './components/NotebookView';
 import { MaterialsView } from './components/MaterialsView';
 import { StreamsView } from './components/StreamsView';
+import { HabitTracker } from './components/HabitTracker';
+import { ModuleList } from './components/ModuleList';
 import { SystemHealthAgent } from './components/SystemHealthAgent';
 import { Backend } from './services/backendService';
 import { XPService } from './services/xpService';
@@ -28,7 +30,10 @@ const DEFAULT_CONFIG: AppConfig = {
       googleDriveFolderId: '', 
       crmWebhookUrl: '', 
       aiModelVersion: 'gemini-3-flash-preview',
-      databaseUrl: process.env.DATABASE_URL || ""
+      databaseUrl: '',
+      airtablePat: '', // Default empty to prevent errors
+      airtableBaseId: '',
+      airtableTableName: 'Users'
   },
   features: { enableRealTimeSync: true, autoApproveHomework: false, maintenanceMode: false, allowStudentChat: true, publicLeaderboard: true },
   aiConfig: {
@@ -62,6 +67,7 @@ const DEFAULT_USER: UserProgress = {
     chatNotifications: true
   },
   notebook: [],
+  habits: [],
   stats: XPService.getInitStats()
 };
 
@@ -82,9 +88,6 @@ const App: React.FC = () => {
   const [userProgress, setUserProgress] = useState<UserProgress>(() => Storage.get<UserProgress>('progress', DEFAULT_USER));
   const [notifications, setNotifications] = useState<AppNotification[]>(() => Storage.get<AppNotification[]>('local_notifications', []));
 
-  // Ref to track last notification count for alerts
-  const prevNotifCount = useRef(0);
-
   const activeLesson = selectedLessonId ? modules.flatMap(m => m.lessons).find(l => l.id === selectedLessonId) : null;
   const activeModule = activeLesson ? modules.find(m => m.lessons.some(l => l.id === activeLesson.id)) : null;
 
@@ -99,17 +102,14 @@ const App: React.FC = () => {
 
       // 2. Sync Notifications
       const rawNotifs = await Backend.fetchNotifications();
-      // Filter relevant notifications
       const myNotifs = rawNotifs.filter(n => {
           if (n.targetUserId && n.targetUserId !== userProgress.telegramId) return false;
           if (n.targetRole && n.targetRole !== 'ALL' && n.targetRole !== userProgress.role) return false;
           return true;
       });
 
-      // Simple diff check for new notification alert
       if (myNotifs.length > notifications.length) {
           const latest = myNotifs[0];
-          // Ensure we don't alert for old ones if we just loaded app
           if (latest && latest.date > new Date(Date.now() - 10000).toISOString()) { 
                addToast(latest.type === 'ALERT' ? 'error' : 'info', latest.title, latest.link);
                telegram.haptic('success');
@@ -133,41 +133,28 @@ const App: React.FC = () => {
           setAllUsers(remoteUsers);
       }
 
-      // 5. Sync Current User Role/Stats
+      // 5. Sync Current User (Now via Airtable logic in BackendService)
       if (userProgress.isAuthenticated) {
           const freshUser = await Backend.syncUser(userProgress);
           
-          // Only update if critical fields changed
           if (freshUser.role !== userProgress.role || freshUser.level !== userProgress.level || freshUser.xp !== userProgress.xp) {
               setUserProgress(prev => ({ 
                   ...prev, 
-                  role: freshUser.role,
-                  level: freshUser.level,
-                  xp: freshUser.xp,
-                  name: freshUser.name // Also sync name in case admin changed it
+                  ...freshUser, // Merge all fresh data including habits
               }));
           }
       }
   }, [appConfig, userProgress, modules, materials, streams, events, scenarios, allUsers, notifications]);
 
-  // Setup Event Listener and Polling
   useEffect(() => {
-      // Initial Sync
       syncData();
-
-      // Listen for broadcasts from other tabs (Admin -> User sync)
-      Backend.onSync(() => {
-          syncData();
-      });
-
-      // Poll as backup (every 10 seconds)
-      const interval = setInterval(syncData, 10000);
+      Backend.onSync(() => syncData());
+      const interval = setInterval(syncData, 15000); // Poll every 15s to respect Airtable rate limits
       return () => clearInterval(interval);
   }, []); 
   
-  // Re-attach poll when syncData changes to ensure fresh closure
   useEffect(() => {
-      const interval = setInterval(syncData, 10000);
+      const interval = setInterval(syncData, 15000);
       return () => clearInterval(interval);
   }, [syncData]);
 
@@ -190,7 +177,7 @@ const App: React.FC = () => {
     Storage.set('progress', userProgress);
     const timer = setTimeout(() => {
         if (userProgress.isAuthenticated) Backend.saveUser(userProgress);
-    }, 1000);
+    }, 2000); // Debounced save
     return () => clearTimeout(timer);
   }, [userProgress]);
 
@@ -229,7 +216,7 @@ const App: React.FC = () => {
 
   const handleUpdateUser = (data: Partial<UserProgress>) => setUserProgress(prev => ({ ...prev, ...data }));
 
-  // --- ADMIN ACTIONS (With Immediate Local State Update) ---
+  // --- ADMIN ACTIONS ---
 
   const handleUpdateModules = (newModules: Module[]) => { 
       setModules(newModules); 
@@ -258,7 +245,8 @@ const App: React.FC = () => {
   const handleUpdateAllUsers = (newUsers: UserProgress[]) => {
       setAllUsers(newUsers);
       Storage.set('allUsers', newUsers);
-      Backend.saveUser(newUsers.find(u => u.telegramId === userProgress.telegramId) || userProgress); // Sync logic wrapper
+      // Admin update should ideally push to Airtable individually or we implement a batch update in backend
+      // For now, simpler to just sync current user context if needed
   };
   const handleSendBroadcast = (notification: AppNotification) => {
       Backend.sendBroadcast(notification);
@@ -340,6 +328,7 @@ const App: React.FC = () => {
                isCompleted={userProgress.completedLessonIds.includes(activeLesson.id)}
                onComplete={handleCompleteLesson}
                onBack={() => setSelectedLessonId(null)}
+               onNavigate={(id) => setSelectedLessonId(id)}
                parentModule={activeModule}
                userProgress={userProgress}
                onUpdateUser={handleUpdateUser}
@@ -366,6 +355,14 @@ const App: React.FC = () => {
               
               {activeTab === Tab.ARENA && <SalesArena />}
               
+              {activeTab === Tab.HABITS && (
+                  <HabitTracker 
+                      habits={userProgress.habits || []}
+                      onUpdateHabits={(habits) => handleUpdateUser({ habits })}
+                      onBack={() => setActiveTab(Tab.HOME)}
+                  />
+              )}
+
               {activeTab === Tab.NOTEBOOK && (
                  <NotebookView 
                     entries={userProgress.notebook} 
@@ -388,6 +385,21 @@ const App: React.FC = () => {
                   />
               )}
 
+              {activeTab === Tab.MODULES && (
+                  <div className="px-6 pt-10 pb-32 max-w-2xl mx-auto space-y-8 animate-fade-in">
+                      <div className="flex items-center gap-4">
+                          <button onClick={() => setActiveTab(Tab.HOME)} className="w-10 h-10 rounded-2xl bg-surface border border-border-color flex items-center justify-center active:scale-90 transition-transform">
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+                          </button>
+                          <div>
+                              <span className="text-[#6C5DD3] text-[10px] font-black uppercase tracking-[0.3em] mb-1 block">Full Course</span>
+                              <h1 className="text-3xl font-black text-text-primary tracking-tighter">ВСЕ МОДУЛИ</h1>
+                          </div>
+                      </div>
+                      <ModuleList modules={modules} userProgress={userProgress} onSelectLesson={(l) => setSelectedLessonId(l.id)} onBack={() => setActiveTab(Tab.HOME)} />
+                  </div>
+              )}
+
               {activeTab === Tab.PROFILE && (
                  <Profile 
                     userProgress={userProgress} 
@@ -396,6 +408,7 @@ const App: React.FC = () => {
                     onUpdateUser={handleUpdateUser}
                     events={events}
                     onLogin={handleLogin}
+                    onNavigate={setActiveTab}
                  />
               )}
 
@@ -432,7 +445,7 @@ const App: React.FC = () => {
         setActiveTab={setActiveTab} 
         role={userProgress.role} 
         adminSubTab={adminSubTab}
-        setAdminSubTab={setAdminSubTab}
+        setAdminSubTab={(t) => setAdminSubTab(t as any)}
         isLessonActive={!!selectedLessonId}
         onExitLesson={() => setSelectedLessonId(null)}
         notifications={notifications}

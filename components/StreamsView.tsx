@@ -5,6 +5,9 @@ import { Stream, UserProgress } from '../types';
 import { XPService } from '../services/xpService';
 import { telegram } from '../services/telegramService';
 
+// Fix for ReactPlayer type issues in TypeScript/Vite
+const VideoPlayer = ReactPlayer as unknown as React.ComponentType<any>;
+
 interface StreamsViewProps {
   streams: Stream[];
   onBack: () => void;
@@ -61,7 +64,7 @@ export const StreamsView: React.FC<StreamsViewProps> = ({ streams, userProgress,
                 <div key={stream.id} className="bg-surface rounded-[2.5rem] overflow-hidden border border-border-color shadow-sm animate-slide-up group" style={{ animationDelay: `${i*0.1}s` }}>
                     <div className="relative aspect-video bg-black overflow-hidden">
                         {stream.youtubeUrl ? (
-                            <ReactPlayer 
+                            <VideoPlayer 
                                 url={stream.youtubeUrl} 
                                 width="100%" 
                                 height="100%" 

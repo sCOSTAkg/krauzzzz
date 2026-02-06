@@ -6,7 +6,7 @@ export interface Lesson {
   title: string;
   description: string;
   content: string;
-  xpReward: number; // Base reward (replaced by dynamic logic in many cases)
+  xpReward: number; 
   homeworkType: HomeworkType;
   homeworkTask: string;
   aiGradingInstruction: string;
@@ -38,7 +38,7 @@ export interface Material {
 export interface Stream {
   id: string;
   title: string;
-  date: string; // ISO Date
+  date: string; 
   youtubeUrl: string;
   status: 'UPCOMING' | 'LIVE' | 'PAST';
 }
@@ -46,9 +46,20 @@ export interface Stream {
 export interface NotebookEntry {
   id: string;
   text: string;
-  isChecked: boolean; // For habits/checklists
-  type: 'HABIT' | 'GOAL' | 'IDEA' | 'NOTE' | 'GRATITUDE'; // Added GRATITUDE
-  date: string; // To track daily limits
+  isChecked: boolean; 
+  type: 'HABIT' | 'GOAL' | 'IDEA' | 'NOTE' | 'GRATITUDE'; 
+  date: string; 
+}
+
+// --- NEW HABIT TRACKER TYPES ---
+export interface Habit {
+    id: string;
+    title: string;
+    description?: string;
+    streak: number;
+    completedDates: string[]; // ISO Date strings (YYYY-MM-DD)
+    targetDaysPerWeek: number;
+    icon: string;
 }
 
 export type UserRole = 'STUDENT' | 'ADMIN';
@@ -82,18 +93,18 @@ export interface UserDossier {
   motivation?: string; 
 }
 
-// Stats tracking for XP rules
 export interface UserStats {
-    storiesPosted: number; // Max 5 per course
-    questionsAsked: Record<string, number>; // LessonID -> count (Max 5 per lesson)
+    storiesPosted: number; 
+    questionsAsked: Record<string, number>; 
     referralsCount: number;
-    streamsVisited: string[]; // IDs of visited streams
-    homeworksSpeed: Record<string, 'FAST' | 'SLOW' | 'POOR'>; // LessonID -> speed/quality metric
+    streamsVisited: string[]; 
+    homeworksSpeed: Record<string, 'FAST' | 'SLOW' | 'POOR'>; 
     initiativesCount: number;
 }
 
 export interface UserProgress {
   id?: string;
+  airtableRecordId?: string; // Internal ID for Airtable updates
   telegramId?: string;
   telegramUsername?: string;
   password?: string;
@@ -101,13 +112,14 @@ export interface UserProgress {
   role: UserRole;
   isAuthenticated: boolean;
   registrationDate?: string;
+  lastSyncTimestamp?: number; // For Conflict Resolution
   
   xp: number;
   level: number;
   completedLessonIds: string[];
   submittedHomeworks: string[];
   
-  chatHistory: ChatMessage[]; // Kept for legacy compatibility but unused in UI
+  chatHistory: ChatMessage[]; 
   originalPhotoBase64?: string;
   avatarUrl?: string;
   
@@ -124,8 +136,9 @@ export interface UserProgress {
   
   notifications: NotificationSettings;
   
-  // Notebook
+  // Notebook & Habits
   notebook: NotebookEntry[];
+  habits: Habit[]; // NEW
 
   // New Detailed Stats for Rating System
   stats: UserStats;
@@ -136,8 +149,12 @@ export interface AppIntegrations {
   googleDriveFolderId?: string;
   crmWebhookUrl?: string;
   aiModelVersion?: string;
-  databaseUrl?: string; // CHANGED: Generic DB URL instead of Supabase specific keys
-  inviteBaseUrl?: string; // NEW: Configurable invite link
+  databaseUrl?: string; 
+  inviteBaseUrl?: string;
+  // Airtable Config
+  airtablePat?: string;
+  airtableBaseId?: string;
+  airtableTableName?: string;
 }
 
 export interface AppFeatures {
@@ -168,9 +185,9 @@ export interface AIConfig {
 export interface SystemAgentConfig {
     enabled: boolean;
     autoFix: boolean; 
-    monitoringInterval: number; // ms
+    monitoringInterval: number; 
     sensitivity: 'LOW' | 'HIGH';
-    autonomyLevel: 'PASSIVE' | 'SUGGEST' | 'FULL_AUTO'; // New: How much power the agent has
+    autonomyLevel: 'PASSIVE' | 'SUGGEST' | 'FULL_AUTO'; 
 }
 
 export interface AppConfig {
@@ -206,9 +223,9 @@ export interface AppNotification {
   date: string;
   type: 'INFO' | 'WARNING' | 'SUCCESS' | 'ALERT';
   targetRole?: 'ALL' | UserRole;
-  targetUserId?: string; // For specific user targeting
+  targetUserId?: string; 
   isRead?: boolean;
-  link?: string; // Actionable link (e.g., 'STREAMS', 'LESSON:l1')
+  link?: string; 
 }
 
 export enum Tab {
@@ -219,6 +236,7 @@ export enum Tab {
   ARENA = 'ARENA', 
   STREAMS = 'STREAMS', 
   NOTEBOOK = 'NOTEBOOK', 
+  HABITS = 'HABITS', // NEW
   PROFILE = 'PROFILE',
   ADMIN_DASHBOARD = 'ADMIN_DASHBOARD'
 }
@@ -232,7 +250,6 @@ export interface ArenaScenario {
   initialMessage: string;
 }
 
-// --- AGENT ACTIONS ---
 export type AgentActionType = 
     | 'OPTIMIZE_CONFIG' 
     | 'REWRITE_LESSON' 
@@ -246,5 +263,5 @@ export type AgentActionType =
 export interface AgentDecision {
     action: AgentActionType;
     reason: string;
-    payload: any; // Dynamic payload based on action
+    payload: any; 
 }

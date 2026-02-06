@@ -28,7 +28,7 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
 
   return (
     <div className="grid grid-cols-1 gap-3 pb-24 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module, index) => {
+        {modules.map((module) => {
             const isLocked = userProgress.level < module.minLevel;
             const completedCount = module.lessons.filter(l => userProgress.completedLessonIds.includes(l.id)).length;
             const totalCount = module.lessons.length;
@@ -39,106 +39,122 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
             const getConfig = (cat: string) => {
                 switch(cat) {
                     case 'SALES': return { 
-                        grad: 'from-emerald-500/20 to-emerald-900/40', 
+                        bg: 'from-emerald-900/40 to-emerald-950/80',
+                        border: 'border-emerald-500/20 hover:border-emerald-500/40',
                         accent: '#10B981', 
+                        shadow: 'shadow-emerald-500/10',
                         icon: '💰'
                     };
                     case 'PSYCHOLOGY': return { 
-                        grad: 'from-violet-500/20 to-violet-900/40', 
+                        bg: 'from-violet-900/40 to-violet-950/80',
+                        border: 'border-violet-500/20 hover:border-violet-500/40',
                         accent: '#8B5CF6', 
+                        shadow: 'shadow-violet-500/10',
                         icon: '🧠' 
                     };
                     case 'TACTICS': return { 
-                        grad: 'from-rose-500/20 to-rose-900/40', 
+                        bg: 'from-rose-900/40 to-rose-950/80',
+                        border: 'border-rose-500/20 hover:border-rose-500/40',
                         accent: '#F43F5E', 
+                        shadow: 'shadow-rose-500/10',
                         icon: '⚔️' 
                     };
                     default: return { 
-                        grad: 'from-blue-500/20 to-blue-900/40', 
+                        bg: 'from-blue-900/40 to-blue-950/80',
+                        border: 'border-blue-500/20 hover:border-blue-500/40',
                         accent: '#6C5DD3', 
+                        shadow: 'shadow-blue-500/10',
                         icon: '🛡️' 
                     };
                 }
             };
 
             const style = getConfig(module.category);
-            const activeGradient = isLocked ? 'bg-[#1F2128]' : `bg-gradient-to-br ${style.grad}`;
-            const accentColor = isLocked ? '#64748B' : style.accent;
+            // Dynamic classes based on state
+            const stateClasses = isLocked 
+                ? 'opacity-70 grayscale border-white/5 bg-[#16181D]' 
+                : `bg-gradient-to-br ${style.bg} ${style.border} ${style.shadow} hover:-translate-y-1 hover:shadow-xl`;
 
             return (
                 <div 
                     key={module.id}
                     onClick={() => handleModuleClick(module, isLocked)}
                     className={`
-                        relative w-full rounded-[1.5rem] overflow-hidden transition-all duration-300
-                        border border-white/5 flex flex-col justify-between
+                        relative w-full rounded-2xl overflow-hidden transition-all duration-300
+                        border flex flex-col justify-between group h-full min-h-[140px]
                         ${shakingId === module.id ? 'animate-shake' : ''}
-                        ${isLocked 
-                            ? 'opacity-60 grayscale cursor-not-allowed' 
-                            : 'cursor-pointer hover:border-white/20 active:scale-[0.98] shadow-lg hover:shadow-xl'}
-                        ${activeGradient}
+                        ${stateClasses}
                     `}
-                    style={{ 
-                        boxShadow: isLocked ? 'none' : `0 10px 30px -10px ${accentColor}20`
-                    }}
                 >
-                    {/* Background Noise/Texture */}
-                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none"></div>
+                    {/* Background Texture */}
+                    {!isLocked && <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none"></div>}
+                    
+                    {/* Glow Effect on Hover */}
+                    {!isLocked && <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/5 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>}
 
-                    <div className="p-5 flex flex-col h-full justify-between relative z-10">
-                        {/* Header Area */}
-                        <div className="flex justify-between items-start gap-4">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                    <span className="text-lg leading-none">{style.icon}</span>
+                    <div className="p-4 flex flex-col h-full relative z-10">
+                        {/* Top Row: Icon & Status */}
+                        <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg shadow-inner border border-white/5 ${isLocked ? 'bg-white/5 text-white/20' : 'bg-black/20 text-white'}`}>
+                                    {style.icon}
+                                </div>
+                                <div className="flex flex-col">
                                     <span 
-                                        className="text-[9px] font-black uppercase tracking-[0.2em]"
-                                        style={{ color: accentColor }}
+                                        className="text-[8px] font-black uppercase tracking-[0.2em] mb-0.5"
+                                        style={{ color: isLocked ? '#64748B' : style.accent }}
                                     >
                                         {module.category}
                                     </span>
+                                    {isLocked && <span className="text-[8px] font-bold text-white/30 uppercase">Lvl {module.minLevel}+</span>}
                                 </div>
-                                <h3 className={`text-sm font-extrabold leading-snug line-clamp-2 ${isLocked ? 'text-slate-500' : 'text-white'}`}>
-                                    {module.title}
-                                </h3>
                             </div>
                             
-                            {/* Status Icon */}
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${
-                                 isLocked 
-                                 ? 'border-white/5 bg-black/20 text-slate-600' 
-                                 : 'border-white/10 bg-white/10 text-white backdrop-blur-sm'
-                             }`}>
+                            {/* Status Indicator */}
+                            <div className="flex-shrink-0">
                                  {isLocked ? (
-                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                     <div className="w-6 h-6 rounded-full bg-black/30 border border-white/5 flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                     </div>
                                  ) : isCompleted ? (
-                                     <span className="text-[#00B050] font-black text-xs">✓</span>
+                                     <div className="w-6 h-6 rounded-full bg-[#00B050]/20 border border-[#00B050]/50 flex items-center justify-center">
+                                        <span className="text-[#00B050] font-black text-[9px]">✓</span>
+                                     </div>
                                  ) : (
-                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                                     <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                        <svg className="w-3 h-3 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+                                     </div>
                                  )}
                              </div>
                         </div>
 
-                        {/* Footer / Progress */}
-                        <div className="mt-5">
-                             <div className="flex justify-between items-end mb-2">
-                                 <span className="text-[10px] font-bold text-slate-500 dark:text-white/40">
+                        {/* Title */}
+                        <h3 className={`text-sm font-extrabold leading-tight line-clamp-2 mb-auto ${isLocked ? 'text-white/40' : 'text-white'}`}>
+                            {module.title}
+                        </h3>
+
+                        {/* Progress Bar */}
+                        <div className="mt-4">
+                             <div className="flex justify-between items-end mb-1.5">
+                                 <span className="text-[9px] font-bold text-white/40">
                                      {completedCount} <span className="opacity-50">/ {totalCount}</span>
                                  </span>
-                                 <span className="text-[10px] font-black" style={{ color: accentColor }}>
-                                     {progressPercent}%
-                                 </span>
+                                 {!isLocked && (
+                                     <span className="text-[9px] font-black" style={{ color: style.accent }}>
+                                         {progressPercent}%
+                                     </span>
+                                 )}
                              </div>
                              
-                             <div className="w-full h-1.5 bg-black/20 rounded-full overflow-hidden backdrop-blur-sm">
+                             <div className="w-full h-1 bg-black/30 rounded-full overflow-hidden">
                                  <div 
                                     className="h-full rounded-full transition-all duration-700 ease-out relative" 
                                     style={{ 
                                         width: `${progressPercent}%`, 
-                                        backgroundColor: accentColor
+                                        backgroundColor: isLocked ? '#334155' : style.accent
                                     }}
                                  >
-                                     {!isLocked && <div className="absolute top-0 right-0 w-2 h-full bg-white/50 blur-[2px]"></div>}
+                                     {!isLocked && <div className="absolute top-0 right-0 w-2 h-full bg-white/60 blur-[1px]"></div>}
                                  </div>
                              </div>
                         </div>

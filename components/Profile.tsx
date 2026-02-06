@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProgress, CalendarEvent, UserRole, AppConfig } from '../types';
+import { UserProgress, CalendarEvent, UserRole, AppConfig, Tab } from '../types';
 import { CalendarView } from './CalendarView';
 import { telegram } from '../services/telegramService';
 import { XPService, XP_RULES } from '../services/xpService';
@@ -16,11 +16,12 @@ interface ProfileProps {
   events: CalendarEvent[];
   activeTabOverride?: string;
   onLogin: (data: any) => void;
+  onNavigate: (tab: Tab) => void; // Added for internal navigation
 }
 
 type ProfileTab = 'STATS' | 'CALENDAR' | 'RATING' | 'SETTINGS';
 
-export const Profile: React.FC<ProfileProps> = ({ userProgress, onLogout, allUsers, onUpdateUser, events, activeTabOverride, onLogin }) => {
+export const Profile: React.FC<ProfileProps> = ({ userProgress, onLogout, allUsers, onUpdateUser, events, activeTabOverride, onLogin, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<ProfileTab>((activeTabOverride as ProfileTab) || 'STATS');
   
   // Parallax Effect State
@@ -164,8 +165,41 @@ export const Profile: React.FC<ProfileProps> = ({ userProgress, onLogout, allUse
               </div>
           </div>
 
+          {/* Efficiency Panels (Habits & Notes) */}
+          <div className="grid grid-cols-2 gap-4 animate-slide-up delay-100 fill-mode-both">
+              <button 
+                  onClick={() => { telegram.haptic('medium'); onNavigate(Tab.HABITS); }}
+                  className="bg-[#1F2128] p-5 rounded-[2rem] border border-white/5 text-left relative overflow-hidden group active:scale-95 transition-transform"
+              >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-red-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex justify-between items-start mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center text-xl">🔥</div>
+                      <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Трекер</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-white">
+                      {Math.max(...(userProgress.habits?.map(h => h.streak) || [0]))}
+                  </h3>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Макс. Стрик</p>
+              </button>
+
+              <button 
+                  onClick={() => { telegram.haptic('medium'); onNavigate(Tab.NOTEBOOK); }}
+                  className="bg-[#1F2128] p-5 rounded-[2rem] border border-white/5 text-left relative overflow-hidden group active:scale-95 transition-transform"
+              >
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex justify-between items-start mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center text-xl">📝</div>
+                      <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Блокнот</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-white">
+                      {userProgress.notebook?.length || 0}
+                  </h3>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Записей</p>
+              </button>
+          </div>
+
           {/* Activity Graph Card */}
-          <div className="bg-white dark:bg-[#14161B] p-6 rounded-[2.5rem] border border-slate-200 dark:border-white/5 relative overflow-hidden animate-slide-up delay-100 fill-mode-both shadow-md dark:shadow-none">
+          <div className="bg-white dark:bg-[#14161B] p-6 rounded-[2.5rem] border border-slate-200 dark:border-white/5 relative overflow-hidden animate-slide-up delay-200 fill-mode-both shadow-md dark:shadow-none">
              <div className="flex justify-between items-center mb-6">
                  <h3 className="font-black text-slate-800 dark:text-white">Боевая Активность</h3>
                  <span className="text-[10px] bg-[#00B050]/20 text-[#00B050] border border-[#00B050]/20 px-2 py-1 rounded-lg font-bold uppercase animate-pulse-slow">+12% week</span>

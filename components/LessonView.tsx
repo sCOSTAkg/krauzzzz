@@ -14,6 +14,7 @@ interface LessonViewProps {
   isCompleted: boolean;
   onComplete: (lessonId: string, xpBonus: number) => void;
   onBack: () => void;
+  onNavigate: (lessonId: string) => void;
   parentModule?: Module | null;
   userProgress: UserProgress;
   onUpdateUser: (data: Partial<UserProgress>) => void;
@@ -60,7 +61,8 @@ export const LessonView: React.FC<LessonViewProps> = ({
   lesson, 
   isCompleted, 
   onComplete, 
-  onBack, 
+  onBack,
+  onNavigate, 
   parentModule,
   userProgress,
   onUpdateUser,
@@ -88,6 +90,10 @@ export const LessonView: React.FC<LessonViewProps> = ({
   // Sync edited state when lesson changes
   useEffect(() => {
       setEditedLesson(lesson);
+      // Reset scroll on lesson change
+      const main = document.querySelector('main');
+      if (main) main.scrollTop = 0;
+      else window.scrollTo(0, 0);
   }, [lesson]);
 
   const handleAskQuestion = () => {
@@ -163,6 +169,11 @@ export const LessonView: React.FC<LessonViewProps> = ({
   const videoUrl = lesson.videoUrl || parentModule?.videoUrl;
   const hasVideo = !!videoUrl;
 
+  // Navigation Logic
+  const currentIndex = parentModule?.lessons.findIndex(l => l.id === lesson.id) ?? -1;
+  const prevLesson = currentIndex > 0 ? parentModule?.lessons[currentIndex - 1] : null;
+  const nextLesson = (parentModule && currentIndex < parentModule.lessons.length - 1) ? parentModule.lessons[currentIndex + 1] : null;
+
   // --- ADMIN EDIT RENDER ---
   if (isEditing && isAdmin) {
       return (
@@ -174,7 +185,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
             </div>
 
             <div className="p-4 space-y-4 pb-40 overflow-y-auto">
-                
+                {/* ... (Existing Admin Edit Sections) ... */}
                 {/* 1. Basic Info Section */}
                 <EditSection 
                     title="Основная информация" 
@@ -455,6 +466,37 @@ export const LessonView: React.FC<LessonViewProps> = ({
                 <p className="text-green-500/60 text-xs font-black uppercase tracking-widest">+ {lesson.xpReward} XP получено</p>
             </div>
         )}
+
+        {/* Navigation Buttons */}
+        <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-border-color">
+            <button
+                onClick={() => { if (prevLesson) { onNavigate(prevLesson.id); telegram.haptic('selection'); } }}
+                disabled={!prevLesson}
+                className={`
+                    py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2
+                    ${!prevLesson 
+                        ? 'opacity-30 cursor-not-allowed text-text-secondary border border-border-color' 
+                        : 'bg-surface border border-border-color text-text-primary hover:border-[#6C5DD3] active:scale-95 shadow-sm'
+                    }
+                `}
+            >
+                <span>←</span> Назад
+            </button>
+            
+            <button
+                onClick={() => { if (nextLesson) { onNavigate(nextLesson.id); telegram.haptic('selection'); } }}
+                disabled={!nextLesson}
+                className={`
+                    py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2
+                    ${!nextLesson 
+                        ? 'opacity-30 cursor-not-allowed text-text-secondary border border-border-color' 
+                        : 'bg-[#6C5DD3] text-white shadow-lg shadow-[#6C5DD3]/20 active:scale-95 hover:bg-[#5b4eb5]'
+                    }
+                `}
+            >
+                Далее <span>→</span>
+            </button>
+        </div>
       </div>
     </div>
   );

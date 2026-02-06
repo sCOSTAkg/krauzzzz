@@ -59,8 +59,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <h1 className="text-base font-black text-text-primary leading-none tracking-tight">{userProgress.name}</h1>
               </div>
           </div>
-          
-          {/* Right side is now empty, SmartNav handles notifications */}
       </div>
 
       <div className="px-6 pt-4 pb-36 space-y-8 animate-fade-in max-w-4xl mx-auto">
@@ -117,7 +115,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             <div className="grid grid-cols-2 gap-4">
                 {[
                     { id: Tab.ARENA, title: 'АРЕНА', icon: '⚔️', color: 'from-red-500/20 to-red-600/5', border: 'border-red-500/20', text: 'text-red-500', desc: 'Симуляции' },
-                    { id: Tab.MATERIALS, title: 'БАЗА', icon: '📚', color: 'from-blue-500/20 to-blue-600/5', border: 'border-blue-500/20', text: 'text-blue-500', desc: 'Знания' },
+                    { id: Tab.HABITS, title: 'ТРЕКЕР', icon: '🔥', color: 'from-orange-500/20 to-orange-600/5', border: 'border-orange-500/20', text: 'text-orange-500', desc: 'Дисциплина' },
                     { id: Tab.STREAMS, title: 'ЭФИРЫ', icon: '📹', color: 'from-purple-500/20 to-purple-600/5', border: 'border-purple-500/20', text: 'text-purple-500', desc: 'Записи' },
                     { id: Tab.NOTEBOOK, title: 'БЛОКНОТ', icon: '📝', color: 'from-green-500/20 to-green-600/5', border: 'border-green-500/20', text: 'text-green-500', desc: 'Заметки' },
                 ].map((item) => (
@@ -152,10 +150,20 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         <div className="space-y-4">
              <div className="flex flex-col gap-4 px-1">
                  <div className="flex justify-between items-end">
-                    <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">Программа</h3>
-                    <span className="text-[9px] font-bold text-text-secondary bg-surface px-2 py-1 rounded-lg border border-border-color">
-                        {modules.length} modules
-                    </span>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-black text-text-primary uppercase tracking-widest">Программа</h3>
+                        <span className="text-[9px] font-bold text-text-secondary bg-surface px-2 py-1 rounded-lg border border-border-color">
+                            {modules.length}
+                        </span>
+                    </div>
+                    
+                    <button 
+                        onClick={() => { telegram.haptic('selection'); onNavigate(Tab.MODULES); }}
+                        className="text-[10px] font-bold text-[#6C5DD3] hover:text-[#5b4eb5] transition-colors flex items-center gap-1 active:scale-95 py-2 px-1"
+                    >
+                        Все модули
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </button>
                  </div>
              </div>
              <ModuleList modules={modules} userProgress={userProgress} onSelectLesson={onSelectLesson} onBack={() => {}} />

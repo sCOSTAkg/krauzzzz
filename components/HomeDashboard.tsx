@@ -31,7 +31,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onSelectLesson,
   appConfig
 }) => {
-  // Calculate overall course progress
   const totalLessons = modules.reduce((acc, m) => acc + m.lessons.length, 0);
   const completedCount = userProgress.completedLessonIds.length;
   const overallProgress = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
@@ -48,7 +47,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const handleCommandClick = (tab: Tab) => {
       if (!isAuthenticated) {
           telegram.haptic('error');
-          telegram.showAlert('Доступ ограничен. Войдите в систему (Профиль).', 'Security Alert');
+          telegram.showAlert('Этот раздел доступен только авторизованным бойцам. Пройдите идентификацию.', 'Доступ закрыт');
           return;
       }
       telegram.haptic('selection');
@@ -94,8 +93,8 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         {!isAuthenticated ? (
             <div className="relative bg-[#16181D] rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 group animate-slide-up">
                 {/* Welcome Video Widget */}
-                <div className="relative aspect-video w-full bg-black">
-                    {appConfig?.welcomeVideoUrl && (
+                {appConfig?.welcomeVideoUrl && (
+                    <div className="relative aspect-video w-full bg-black">
                         <VideoPlayer 
                             url={appConfig.welcomeVideoUrl} 
                             width="100%" 
@@ -107,17 +106,14 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                                 </div>
                             }
                         />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#16181D] via-transparent to-transparent pointer-events-none"></div>
-                </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#16181D] via-transparent to-transparent pointer-events-none"></div>
+                    </div>
+                )}
                 
                 <div className="p-6 relative">
-                    <div className="absolute -top-10 right-6 w-12 h-12 bg-[#6C5DD3] rounded-2xl flex items-center justify-center text-2xl shadow-lg rotate-12 group-hover:rotate-0 transition-transform duration-500">
-                        👋
-                    </div>
-                    <h2 className="text-2xl font-black text-white mb-2 leading-tight">Добро пожаловать <br/>в Академию</h2>
-                    <p className="text-white/60 text-sm leading-relaxed mb-6 font-medium">
-                        {appConfig?.welcomeMessage || "Пройди авторизацию, чтобы получить доступ к секретным материалам и начать обучение."}
+                    <h2 className="text-2xl font-black text-white mb-2 leading-tight">Академия Продаж</h2>
+                    <p className="text-white/60 text-sm leading-relaxed mb-4 font-medium">
+                        {appConfig?.welcomeMessage || "Элитная подготовка. Смотрите программу курса ниже, но доступ к материалам откроется после авторизации."}
                     </p>
                     <button 
                         onClick={onProfileClick}
@@ -191,13 +187,13 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         className={`
                             relative bg-surface p-5 rounded-[2rem] text-left border 
                             hover:border-opacity-50 transition-all active:scale-95 group overflow-hidden shadow-sm animate-slide-up
-                            ${!isAuthenticated ? 'grayscale opacity-60 cursor-not-allowed border-border-color' : item.border}
+                            ${!isAuthenticated ? 'grayscale opacity-80 cursor-not-allowed border-border-color' : item.border}
                         `}
                         style={{ animationDelay: `${i*0.1}s` }}
                     >
                         {!isAuthenticated && (
-                            <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/10 backdrop-blur-[1px]">
-                                <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center text-white">🔒</div>
+                            <div className="absolute top-4 right-4 z-20 opacity-50">
+                                <div className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-text-primary text-xs">🔒</div>
                             </div>
                         )}
                         <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 ${isAuthenticated ? 'group-hover:opacity-100' : ''} transition-opacity duration-500`}></div>
@@ -207,7 +203,6 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                                 <div className={`w-10 h-10 rounded-2xl bg-body flex items-center justify-center text-xl shadow-inner ${isAuthenticated ? item.text : 'text-gray-400'}`}>
                                     {item.icon}
                                 </div>
-                                {isAuthenticated && <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-text-secondary">↗</span>}
                             </div>
                             <div>
                                 <h4 className="font-black text-text-primary text-sm tracking-wide">{item.title}</h4>
@@ -219,7 +214,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             </div>
         </div>
 
-        {/* MODULES LIST */}
+        {/* MODULES LIST - ALWAYS VISIBLE BUT LOCKED */}
         <div className="space-y-4">
              <div className="flex flex-col gap-4 px-1">
                  <div className="flex justify-between items-end">
@@ -231,14 +226,15 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                     </div>
                     
                     <button 
-                        onClick={() => { if(isAuthenticated) { telegram.haptic('selection'); onNavigate(Tab.MODULES); } else { telegram.haptic('error'); } }}
-                        className={`text-[10px] font-bold transition-colors flex items-center gap-1 active:scale-95 py-2 px-1 ${isAuthenticated ? 'text-[#6C5DD3] hover:text-[#5b4eb5]' : 'text-gray-400 cursor-not-allowed'}`}
+                        onClick={() => { telegram.haptic('selection'); onNavigate(Tab.MODULES); }}
+                        className="text-[10px] font-bold transition-colors flex items-center gap-1 active:scale-95 py-2 px-1 text-[#6C5DD3] hover:text-[#5b4eb5]"
                     >
                         Все модули
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
                  </div>
              </div>
+             {/* Pass minimal props, ModuleList handles locking logic internally */}
              <ModuleList modules={modules} userProgress={userProgress} onSelectLesson={onSelectLesson} onBack={() => {}} />
         </div>
       </div>

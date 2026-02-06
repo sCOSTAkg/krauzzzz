@@ -29,7 +29,6 @@ export const SmartNav: React.FC<SmartNavProps> = ({
   action
 }) => {
   const [expandedPanel, setExpandedPanel] = useState<'NONE' | 'ADMIN' | 'NOTIFICATIONS'>('NONE');
-  const [hasInteracted, setHasInteracted] = useState(false);
   
   // Swipe State
   const touchStart = useRef<{ x: number, y: number } | null>(null);
@@ -50,7 +49,6 @@ export const SmartNav: React.FC<SmartNavProps> = ({
   const toggleNotifications = () => {
       telegram.haptic('selection');
       setExpandedPanel(prev => prev === 'NOTIFICATIONS' ? 'NONE' : 'NOTIFICATIONS');
-      setHasInteracted(true);
   };
 
   const handleBack = () => {
@@ -102,18 +100,19 @@ export const SmartNav: React.FC<SmartNavProps> = ({
   // --- RENDER HELPERS ---
 
   const renderAdminLinks = () => (
-      <div className="flex gap-2 px-2 pb-2 justify-center animate-fade-in w-full">
+      <div className="flex gap-2 px-2 pb-2 justify-center animate-fade-in w-full overflow-x-auto no-scrollbar">
          {[
             { id: 'OVERVIEW', icon: '📊' },
             { id: 'COURSE', icon: '🎓' },
             { id: 'ARENA', icon: '⚔️' },
+            { id: 'STREAMS', icon: '📡' }, // Added Streams/Events
             { id: 'USERS', icon: '👥' },
             { id: 'SETTINGS', icon: '⚙️' },
          ].map(link => (
              <button
                 key={link.id}
                 onClick={() => { telegram.haptic('light'); setAdminSubTab(link.id); }}
-                className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
+                className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
                     adminSubTab === link.id 
                     ? 'bg-[#6C5DD3] text-white scale-110 shadow-lg shadow-[#6C5DD3]/40' 
                     : 'bg-white/5 text-white/40 hover:bg-white/10'
@@ -187,17 +186,11 @@ export const SmartNav: React.FC<SmartNavProps> = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] flex justify-center pointer-events-none pb-[calc(var(--safe-bottom)+12px)]">
-      {/* 
-          WRAPPER FOR LIQUID PHYSICS
-          We rely on CSS transitions on the main island's width and the satellite's position.
-      */}
       <div 
         className="relative flex items-end justify-center w-full max-w-[360px] h-[60px]"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
-        
-        {/* --- MAIN ISLAND --- */}
         <div 
             className={`
                 pointer-events-auto bg-[#0F1115]/95 backdrop-blur-2xl
@@ -205,18 +198,16 @@ export const SmartNav: React.FC<SmartNavProps> = ({
                 flex flex-col justify-end items-center overflow-hidden z-20
                 transition-[width,height,border-radius,transform] duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]
                 ${isExpanded 
-                    ? 'w-[92%] h-auto min-h-[60px] rounded-[30px] pb-2' // Expanded
-                    : action ? 'w-[200px] h-[52px] rounded-full' : 'w-[220px] h-[52px] rounded-full' // Idle
+                    ? 'w-[92%] h-auto min-h-[60px] rounded-[30px] pb-2' 
+                    : action ? 'w-[200px] h-[52px] rounded-full' : 'w-[220px] h-[52px] rounded-full' 
                 }
             `}
         >
-            {/* CONTENT (Expanded) */}
             <div className={`transition-all duration-300 w-full ${isExpanded ? 'opacity-100 delay-100 pt-4' : 'opacity-0 h-0 pointer-events-none'}`}>
                 {expandedPanel === 'ADMIN' && renderAdminLinks()}
                 {expandedPanel === 'NOTIFICATIONS' && renderNotifications()}
             </div>
 
-            {/* CONTENT (Collapsed) */}
             <div className={`w-full flex items-center justify-between px-1.5 h-full transition-all duration-300 ${isExpanded && expandedPanel === 'NOTIFICATIONS' ? 'opacity-0 hidden' : 'opacity-100'}`}>
                 
                 {showBackButton && (
@@ -248,7 +239,6 @@ export const SmartNav: React.FC<SmartNavProps> = ({
             </div>
         </div>
 
-        {/* --- SATELLITE (Notifications) --- */}
         <button
             onClick={toggleNotifications}
             className={`
@@ -258,7 +248,7 @@ export const SmartNav: React.FC<SmartNavProps> = ({
                 flex items-center justify-center text-white
                 transition-all duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]
                 ${isExpanded 
-                    ? 'translate-x-[-100px] scale-50 opacity-0' // Merges left into main island
+                    ? 'translate-x-[-100px] scale-50 opacity-0' 
                     : 'translate-x-0 scale-100 opacity-100'
                 }
             `}

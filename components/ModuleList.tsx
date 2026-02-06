@@ -26,8 +26,8 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
   const handleModuleClick = (module: Module, isLocked: boolean) => {
     if (!isAuthenticated) {
         setShakingId(module.id);
-        telegram.haptic('error');
-        telegram.showAlert('Доступ закрыт. Пожалуйста, авторизуйтесь.', 'Security');
+        telegram.haptic('warning');
+        telegram.showAlert('Этот модуль доступен только участникам программы. Авторизуйтесь, чтобы начать.', 'Доступ закрыт');
         setTimeout(() => setShakingId(null), 400);
         return;
     }
@@ -45,42 +45,25 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 pb-24 sm:grid-cols-2">
-        {modules.map((module) => {
+    <div className="grid grid-cols-1 gap-4 pb-32 sm:grid-cols-2 lg:grid-cols-3">
+        {modules.map((module, index) => {
             const isLevelLocked = userProgress.level < module.minLevel;
-            const isLocked = isLevelLocked || !isAuthenticated;
+            const isLocked = (isLevelLocked || !isAuthenticated);
             
             const completedCount = module.lessons.filter(l => userProgress.completedLessonIds.includes(l.id)).length;
             const totalCount = module.lessons.length;
             const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
             const isCompleted = progressPercent === 100;
             
-            // Resolve Image
             const bgImage = module.imageUrl || getYouTubeThumbnail(module.videoUrl);
 
             // Visual Config based on Category
             const getConfig = (cat: string) => {
                 switch(cat) {
-                    case 'SALES': return { 
-                        border: 'border-emerald-500/50',
-                        accent: '#10B981', 
-                        icon: '💰'
-                    };
-                    case 'PSYCHOLOGY': return { 
-                        border: 'border-violet-500/50',
-                        accent: '#8B5CF6', 
-                        icon: '🧠' 
-                    };
-                    case 'TACTICS': return { 
-                        border: 'border-rose-500/50',
-                        accent: '#F43F5E', 
-                        icon: '⚔️' 
-                    };
-                    default: return { 
-                        border: 'border-indigo-500/50',
-                        accent: '#6366f1', 
-                        icon: '🛡️' 
-                    };
+                    case 'SALES': return { accent: '#10B981', icon: '💰', gradient: 'from-emerald-900/80 to-black/80' };
+                    case 'PSYCHOLOGY': return { accent: '#8B5CF6', icon: '🧠', gradient: 'from-violet-900/80 to-black/80' };
+                    case 'TACTICS': return { accent: '#F43F5E', icon: '⚔️', gradient: 'from-rose-900/80 to-black/80' };
+                    default: return { accent: '#6366f1', icon: '🛡️', gradient: 'from-indigo-900/80 to-black/80' };
                 }
             };
 
@@ -91,77 +74,87 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
                     key={module.id}
                     onClick={() => handleModuleClick(module, isLocked)}
                     className={`
-                        relative w-full h-44 sm:h-48 rounded-[1.5rem] overflow-hidden transition-all duration-300
-                        flex flex-col justify-end group active:scale-[0.98] shadow-lg
-                        ${isLocked ? 'grayscale opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:-translate-y-0.5'}
+                        relative w-full h-40 sm:h-48 rounded-3xl overflow-hidden transition-all duration-300
+                        flex flex-col justify-end group active:scale-[0.97]
+                        ${isLocked ? 'cursor-not-allowed opacity-90' : 'hover:shadow-2xl hover:-translate-y-1 cursor-pointer'}
                         ${shakingId === module.id ? 'animate-shake' : ''}
-                        border ${style.border}
+                        shadow-lg shadow-black/20
                     `}
+                    style={{ animationDelay: `${index * 0.1}s` }}
                 >
-                    {/* BACKGROUND IMAGE LAYER */}
+                    {/* BACKGROUND LAYER */}
                     <div className="absolute inset-0 bg-[#16181D]">
                         {bgImage ? (
                             <img 
                                 src={bgImage} 
                                 alt={module.title}
-                                className="w-full h-full object-cover transition-transform duration-[3s] ease-out group-hover:scale-110 opacity-70"
+                                className={`w-full h-full object-cover transition-transform duration-[2s] ease-out ${isLocked ? 'scale-100 grayscale-[0.8]' : 'group-hover:scale-110 grayscale-[0.2]'}`}
                             />
                         ) : (
-                            <div className={`w-full h-full bg-gradient-to-br from-[#16181D] to-[#2C2F36] opacity-50`}></div>
+                            <div className="w-full h-full bg-gradient-to-br from-[#1F2128] to-[#16181D]"></div>
                         )}
-                        {/* Stronger overlay for readability on short cards */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+                        {/* Dynamic Gradient Overlay */}
+                        <div className={`absolute inset-0 bg-gradient-to-t ${style.gradient} via-black/40 to-transparent opacity-90`}></div>
                     </div>
 
-                    {/* LOCKED OVERLAY */}
-                    {isLocked && (
-                        <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/50 backdrop-blur-[1px]">
-                            <div className="bg-black/80 border border-white/10 rounded-xl px-4 py-2 flex items-center gap-2 backdrop-blur-md">
-                                <span className="text-lg">🔒</span>
-                                <span className="text-[10px] font-black uppercase text-white tracking-widest">{isAuthenticated ? `LVL ${module.minLevel}` : 'LOCKED'}</span>
+                    {/* STATUS INDICATORS (Top Right) */}
+                    <div className="absolute top-3 right-3 flex gap-2 z-20">
+                        {isCompleted && (
+                            <div className="w-6 h-6 rounded-full bg-[#00B050] flex items-center justify-center shadow-lg shadow-green-500/30">
+                                <span className="text-white font-black text-[10px]">✓</span>
                             </div>
-                        </div>
-                    )}
+                        )}
+                        {isLocked && (
+                            <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center">
+                                <span className="text-[10px]">🔒</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* CONTENT LAYER */}
                     <div className="relative z-10 p-4 w-full">
-                        <div className="flex justify-between items-start mb-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-lg leading-none drop-shadow-md">{style.icon}</span>
-                                <h3 className="text-sm font-black text-white leading-tight drop-shadow-md line-clamp-1">
-                                    {module.title}
-                                </h3>
-                            </div>
-                            
-                            {isCompleted && (
-                                <div className="w-5 h-5 rounded-full bg-[#00B050] flex items-center justify-center shadow-lg shadow-[#00B050]/40 -mt-1">
-                                    <span className="text-white font-black text-[9px]">✓</span>
-                                </div>
-                            )}
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg leading-none drop-shadow-md filter">{style.icon}</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-white/60" style={{ color: style.accent }}>
+                                {module.category}
+                            </span>
                         </div>
 
-                        <p className="text-[9px] font-medium text-white/70 line-clamp-1 mb-2 leading-tight">
+                        <h3 className="text-sm font-black text-white leading-tight drop-shadow-lg mb-1 line-clamp-2">
+                            {module.title}
+                        </h3>
+                        
+                        <p className="text-[9px] font-medium text-white/70 line-clamp-1 mb-3">
                             {module.description}
                         </p>
 
-                        {/* Compact Progress Bar */}
-                        {!isLocked && (
-                             <div className="flex items-center gap-2">
-                                 <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
+                        {/* Progress or Lock Status */}
+                        <div className="flex items-center gap-3">
+                            {!isLocked ? (
+                                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
                                      <div 
                                         className="h-full rounded-full transition-all duration-700 ease-out relative" 
                                         style={{ 
                                             width: `${progressPercent}%`, 
                                             backgroundColor: style.accent,
-                                            boxShadow: `0 0 8px ${style.accent}`
+                                            boxShadow: `0 0 10px ${style.accent}`
                                         }}
                                      ></div>
-                                 </div>
-                                 <span className="text-[8px] font-black" style={{ color: style.accent }}>
-                                     {Math.round(progressPercent)}%
-                                 </span>
-                             </div>
-                        )}
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/5 backdrop-blur-md">
+                                    <span className="text-[8px] font-bold text-white/50 uppercase">
+                                        {!isAuthenticated ? 'Войдите в профиль' : `Требуется LVL ${module.minLevel}`}
+                                    </span>
+                                </div>
+                            )}
+                            
+                            {!isLocked && (
+                                <span className="text-[9px] font-black" style={{ color: style.accent }}>
+                                    {Math.round(progressPercent)}%
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             );

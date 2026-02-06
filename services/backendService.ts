@@ -12,9 +12,9 @@ const SYNC_CHANNEL_NAME = 'salespro_sync_channel';
 
 /**
  * BACKEND SERVICE
- * Now integrates with Airtable for the Users table (CRM).
- * Other content (static) is still synced via BroadcastChannel/LocalStorage for this version,
- * but Users/Habits are persistent in the Cloud.
+ * Primary data orchestrator. 
+ * Reads from Airtable (Source of Truth) -> Caches to LocalStorage -> Serves App.
+ * Writes from App -> LocalStorage -> Syncs to Airtable (Background).
  */
 class BackendService {
   private channel: BroadcastChannel;
@@ -23,15 +23,9 @@ class BackendService {
       this.channel = new BroadcastChannel(SYNC_CHANNEL_NAME);
   }
 
-  // --- EVENTS ---
-  
-  /**
-   * Subscribe to sync events
-   */
   public onSync(callback: () => void) {
       this.channel.onmessage = (event) => {
           if (event.data && event.data.type === 'SYNC_UPDATE') {
-              // Logger.info('Backend: Received sync signal from another tab');
               callback();
           }
       };
@@ -41,55 +35,54 @@ class BackendService {
       this.channel.postMessage({ type: 'SYNC_UPDATE', timestamp: Date.now() });
   }
   
-  // --- USER SYNC (AIRTABLE INTEGRATION) ---
+  // --- USER SYNC ---
 
   async syncUser(localUser: UserProgress): Promise<UserProgress> {
-    // 1. Try Airtable first
     try {
+        // Try Airtable sync
         const remoteUser = await airtable.syncUser(localUser);
         
-        // If the remote user returned is different (newer) than what we had, update cache
+        // If remote is newer, update local cache
         if (remoteUser.lastSyncTimestamp && localUser.lastSyncTimestamp && remoteUser.lastSyncTimestamp > localUser.lastSyncTimestamp) {
-            Logger.info('Backend: Remote data is newer, updating local cache.');
+            Logger.info('Backend: Remote User Data is newer.');
+            // Also update the "allUsers" list cache if this user is in it
             this.updateLocalUserCache(remoteUser);
             return remoteUser;
         }
         
-        return localUser; // Return local if it was newer or equal
+        return remoteUser; // Or localUser if timestamps match/remote failed
     } catch (e) {
-        Logger.warn('Backend: Airtable sync failed, falling back to LocalStorage', e);
-        // Fallback: LocalStorage logic
-        await this.saveUserLocal(localUser);
+        Logger.warn('Backend: User Sync failed, using local.', e);
         return localUser;
     }
   }
 
   async saveUser(user: UserProgress) {
-      // 1. Mark as updated NOW
       const updatedUser = { ...user, lastSyncTimestamp: Date.now() };
-
-      // 2. Optimistic Update: Save local first
-      await this.saveUserLocal(updatedUser);
       
-      // 3. Async: Push to Airtable
-      airtable.syncUser(updatedUser).then((synced) => {
-          if (synced.airtableRecordId !== updatedUser.airtableRecordId) {
-              // Update local again if we got a new ID (first create)
+      // 1. Save Local
+      this.saveUserLocal(updatedUser);
+      
+      // 2. Sync Remote (Fire and forget, or handle error silently)
+      airtable.syncUser(updatedUser).then(synced => {
+          if (synced.airtableRecordId && !updatedUser.airtableRecordId) {
+              // If we just got an ID, update local again
               this.saveUserLocal(synced);
           }
-      }).catch(err => console.error("Background sync failed", err));
+      }).catch(e => console.error("BG Sync Error", e));
   }
 
-  private async saveUserLocal(user: UserProgress) {
+  private saveUserLocal(user: UserProgress) {
+    // Save to current user slot
+    Storage.set('progress', user);
+
+    // Save to leaderboard list
     const allUsers = Storage.get<UserProgress[]>('allUsers', []);
     const idx = allUsers.findIndex(u => u.telegramId === user.telegramId);
     const newAllUsers = [...allUsers];
     
-    if (idx >= 0) {
-        newAllUsers[idx] = user;
-    } else {
-        newAllUsers.push(user);
-    }
+    if (idx >= 0) newAllUsers[idx] = user;
+    else newAllUsers.push(user);
     
     Storage.set('allUsers', newAllUsers);
     this.notifySync(); 
@@ -104,50 +97,110 @@ class BackendService {
       }
   }
 
-  // --- GLOBAL CONFIG SYNC ---
+  // --- CONFIG SYNC ---
 
   async fetchGlobalConfig(defaultConfig: AppConfig): Promise<AppConfig> {
+      try {
+          const remoteConfig = await airtable.getConfigRecord();
+          if (remoteConfig) {
+              Storage.set('appConfig', remoteConfig);
+              return remoteConfig;
+          }
+      } catch (e) {
+          Logger.warn('Config fetch failed');
+      }
       return Storage.get('appConfig', defaultConfig);
   }
 
   async saveGlobalConfig(config: AppConfig) {
       Storage.set('appConfig', config);
       this.notifySync();
-      Logger.info('Backend: Global config saved');
+      // Push to Airtable
+      await airtable.saveConfig(config);
   }
 
-  // --- CONTENT SYNC ---
+  // --- CONTENT SYNC (READ) ---
 
   async fetchAllContent() {
-      return {
-          modules: Storage.get('courseModules', COURSE_MODULES),
-          materials: Storage.get('materials', MOCK_MATERIALS),
-          streams: Storage.get('streams', MOCK_STREAMS),
-          events: Storage.get('events', MOCK_EVENTS),
-          scenarios: Storage.get('scenarios', SCENARIOS),
-      };
+      // Parallel fetch from Airtable
+      try {
+          const [mods, mats, strs, evts, scens] = await Promise.all([
+              airtable.getModules(),
+              airtable.getMaterials(),
+              airtable.getStreams(),
+              airtable.getEvents(),
+              airtable.getScenarios()
+          ]);
+
+          // Prefer Airtable data if available, otherwise fallback to LocalStorage, then Constants
+          const content = {
+              modules: mods.length > 0 ? mods : Storage.get('courseModules', COURSE_MODULES),
+              materials: mats.length > 0 ? mats : Storage.get('materials', MOCK_MATERIALS),
+              streams: strs.length > 0 ? strs : Storage.get('streams', MOCK_STREAMS),
+              events: evts.length > 0 ? evts : Storage.get('events', MOCK_EVENTS),
+              scenarios: scens.length > 0 ? scens : Storage.get('scenarios', SCENARIOS),
+          };
+
+          // Cache everything locally
+          Storage.set('courseModules', content.modules);
+          Storage.set('materials', content.materials);
+          Storage.set('streams', content.streams);
+          Storage.set('events', content.events);
+          Storage.set('scenarios', content.scenarios);
+
+          return content;
+
+      } catch (e) {
+          Logger.warn('Airtable Content Sync failed completely', e);
+          return null; // Let App use existing state
+      }
   }
 
+  // --- CONTENT SYNC (WRITE) ---
+
   async saveCollection<T extends { id: string }>(table: ContentTable, items: T[]) {
+      // 1. Update LocalStorage immediately for UI responsiveness
       const storageKeyMap: Partial<Record<ContentTable, string>> = {
           'modules': 'courseModules',
           'materials': 'materials',
           'streams': 'streams',
           'events': 'events',
-          'scenarios': 'scenarios'
+          'scenarios': 'scenarios',
+          'notifications': 'local_notifications'
       };
-      
       const key = storageKeyMap[table];
       if (key) {
           Storage.set(key, items);
           this.notifySync();
-          Logger.info(`Backend: Saved ${items.length} items to ${table}`);
+      }
+
+      // 2. Push to Airtable (Naive Upsert for each item)
+      // Note: This does not handle deletions in Airtable if an item is removed from the list locally.
+      // A proper sync would require a diff, but for this scope, upserting active items is sufficient.
+      try {
+          for (const item of items) {
+              switch (table) {
+                  case 'modules': await airtable.saveModule(item as unknown as Module); break;
+                  case 'materials': await airtable.saveMaterial(item as unknown as Material); break;
+                  case 'streams': await airtable.saveStream(item as unknown as Stream); break;
+                  case 'events': await airtable.saveEvent(item as unknown as CalendarEvent); break;
+                  case 'scenarios': await airtable.saveScenario(item as unknown as ArenaScenario); break;
+                  case 'notifications': await airtable.saveNotification(item as unknown as AppNotification); break;
+              }
+          }
+      } catch (e) {
+          Logger.error(`Failed to push collection ${table} to Airtable`, e);
       }
   }
 
   // --- NOTIFICATIONS ---
 
   async fetchNotifications(): Promise<AppNotification[]> {
+      const remote = await airtable.getNotifications();
+      if (remote.length > 0) {
+          Storage.set('local_notifications', remote);
+          return remote;
+      }
       return Storage.get<AppNotification[]>('local_notifications', []);
   }
 
@@ -155,20 +208,20 @@ class BackendService {
       const current = Storage.get<AppNotification[]>('local_notifications', []);
       Storage.set('local_notifications', [notification, ...current]);
       this.notifySync();
+      await airtable.saveNotification(notification);
   }
 
-  // --- USER MANAGEMENT (CRM) ---
+  // --- CRM ---
 
   async getLeaderboard(): Promise<UserProgress[]> {
-     // Fetch from Airtable for Admin/Leaderboard
      try {
          const users = await airtable.getAllUsers();
          if (users.length > 0) {
-             Storage.set('allUsers', users); // Cache it
+             Storage.set('allUsers', users);
              return users;
          }
      } catch (e) {
-         Logger.warn('Failed to fetch leaderboard from Airtable');
+         Logger.warn('Failed to fetch leaderboard');
      }
      return Storage.get<UserProgress[]>('allUsers', []);
   }

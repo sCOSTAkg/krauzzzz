@@ -8,14 +8,16 @@ const DEFAULT_SYSTEM_INSTRUCTION = `
 Твой стиль: Жесткий, но справедливый. Военная риторика.
 `;
 
-// Helper to clean JSON string from Markdown wrappers
-const cleanJsonString = (str: string): string => {
-  if (!str) return '{}';
-  // Remove ```json and ``` wrappers
-  let cleaned = str.replace(/```json\s*/g, '').replace(/```\s*$/g, '');
-  // Remove generic code blocks if json tag wasn't used
-  cleaned = cleaned.replace(/```\s*/g, '');
-  return cleaned.trim();
+const handleGeminiError = (error: any): string => {
+    console.error('Gemini API Error:', error);
+    const errStr = error.toString();
+    
+    // Check for Rate Limit (429) or Quota Exceeded (429 Resource Exhausted)
+    if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota')) {
+        return '⚠️ Системы перегружены (Quota Exceeded). Пожалуйста, попробуйте позже или смените API ключ в настройках.';
+    }
+    
+    return 'Ошибка канала связи с ИИ.';
 };
 
 export const createChatSession = (customInstruction?: string): Chat => {
@@ -33,8 +35,7 @@ export const sendMessageToGemini = async (chat: Chat, message: string): Promise<
     const result: GenerateContentResponse = await chat.sendMessage({ message });
     return result.text || 'Связь с штабом потеряна.';
   } catch (error) {
-    console.error('Gemini API Error:', error);
-    return 'Ошибка канала связи.';
+    return handleGeminiError(error);
   }
 };
 
@@ -82,13 +83,14 @@ export const getArenaHint = async (
       contents: prompt,
       config: { 
           maxOutputTokens: 30,
-          thinkingConfig: { thinkingBudget: 0 } // Disable thinking for low latency/short hints
+          thinkingConfig: { thinkingBudget: 0 } 
       } 
     });
 
     return response.text || null;
   } catch (error) {
-    console.error('Hint Error', error);
+    const msg = handleGeminiError(error);
+    console.warn('Hint suppressed due to error:', msg);
     return null;
   }
 };
@@ -118,6 +120,8 @@ ${history.map(m => `${m.role === 'user' ? 'Продавец' : 'Клиент'}: 
             contents: prompt,
         });
     } catch (e: any) {
+        if (e.toString().includes('429') || e.toString().includes('quota')) throw e; // Don't retry quota errors
+        
         if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
             console.warn('Evaluation fallback to Flash');
             response = await ai.models.generateContent({
@@ -131,8 +135,7 @@ ${history.map(m => `${m.role === 'user' ? 'Продавец' : 'Клиент'}: 
 
     return response.text || 'Командир не смог расшифровать отчет о бое.';
   } catch (error) {
-    console.error('Evaluation Error:', error);
-    return 'Ошибка при анализе стратегии.';
+    return handleGeminiError(error);
   }
 };
 
@@ -214,10 +217,11 @@ export const checkHomeworkWithAI = async (
       }
   
     } catch (error) {
-      console.error('Homework Grading Error:', error);
+      const msg = handleGeminiError(error);
       return {
-          passed: true,
-          feedback: 'Штаб перегружен. Задание принято условно. (Ошибка AI)'
+          passed: true, // Fail open if AI is down/quota limited so student isn't blocked? Or fail closed?
+                        // "Fail Open" (True) allows progress, but marks it.
+          feedback: `[SYSTEM]: ${msg} (Задание принято условно)`
       };
     }
   };
@@ -276,13 +280,15 @@ export const consultSystemAgent = async (
         let response;
         try {
             response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview', // Smartest model for complex logic
+                model: 'gemini-3-pro-preview', 
                 contents: prompt,
                 config: {
                     responseMimeType: "application/json",
                 }
             });
         } catch (e: any) {
+             if (e.toString().includes('429')) return { action: 'NO_ACTION', reason: 'AI Quota Exceeded', payload: {} };
+             
             // Fallback for 403 (Permission Denied) or 404 (Not Found - model)
             if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
                 console.warn('System Agent: Falling back to Flash model due to permissions.');
@@ -338,13 +344,12 @@ export const verifyStoryScreenshot = async (base64Image: string): Promise<boolea
         const result = JSON.parse(response.text || '{}');
         return !!result.isStory;
     } catch (e) {
-        console.error('Story Verify Error', e);
-        return false; // Fail safe
+        handleGeminiError(e);
+        return false; 
     }
 };
 
 // --- AVATAR GENERATION LOGIC ---
-
 const ARMOR_DESCRIPTIONS: Record<string, string> = {
     'Classic Bronze': 'Traditional Spartan bronze cuirass with defined muscle sculpting, deep red cape draped over shoulders, leather straps, and Corinthian helmet details on the pauldrons. Battle-worn texture with scratches.',
     'Midnight Stealth': 'Sleek, matte black obsidian tactical armor, dark grey cowl/hood casting shadows over the forehead, faint purple energy accents in armor crevices, lightweight stealth aesthetic.',
@@ -372,50 +377,27 @@ export const generateSpartanAvatar = async (
     const armorPrompt = ARMOR_DESCRIPTIONS[armorStyle] || ARMOR_DESCRIPTIONS['Classic Bronze'];
     const bgPrompt = BACKGROUND_DESCRIPTIONS[backgroundStyle] || BACKGROUND_DESCRIPTIONS['Ancient Battlefield'];
 
-    // Determine visual progression based on level
-    const armorQuality = level < 3 ? 'Basic Recruit condition (clean, simple)' : level < 7 ? 'Battle-Hardened Veteran condition (scratches, dents, mud splatter)' : 'Legendary Commander condition (Ornate details, glowing energy)';
+    const armorQuality = level < 3 ? 'Basic Recruit condition' : level < 7 ? 'Battle-Hardened Veteran condition' : 'Legendary Commander condition';
     const auraPrompt = level > 5 ? 'Subtle supernatural power aura surrounding the character.' : 'No supernatural aura.';
 
     const prompt = `
-      Task: Generate a high-fidelity 3D avatar portrait (Unreal Engine 5 Metahuman style mixed with Pixar quality).
-      
-      INPUT IMAGE: Use the facial features (eyes, nose, mouth shape, skin tone) from the provided image. The goal is to make the user look like a Spartan warrior version of themselves.
-
-      SUBJECT APPEARANCE:
-      - The character is wearing: ${armorPrompt}
-      - Armor Condition: ${armorQuality}
-      - Special Effect: ${auraPrompt}
-      
-      ENVIRONMENT / BACKGROUND:
-      - ${bgPrompt}
-      - Camera: Close-up portrait (Head and Upper Torso), shallow depth of field (bokeh background).
-      - Lighting: Cinematic, Volumetric lighting matching the background environment.
-
-      STYLE:
-      - 8k resolution, Octane Render.
-      - Heroic, confident expression.
-      - Detailed textures (metal, skin pores, fabric cloth).
+      Task: Generate a high-fidelity 3D avatar portrait.
+      INPUT IMAGE: Use the facial features from the provided image.
+      SUBJECT APPEARANCE: ${armorPrompt}, ${armorQuality}, ${auraPrompt}
+      ENVIRONMENT: ${bgPrompt}
+      STYLE: 8k resolution, Octane Render, Heroic, Cinematic.
     `;
 
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
-          {
-            inlineData: {
-              data: imageBase64,
-              mimeType: 'image/jpeg',
-            },
-          },
-          {
-            text: prompt,
-          },
+          { inlineData: { data: imageBase64, mimeType: 'image/jpeg' } },
+          { text: prompt },
         ],
       },
       config: {
-          imageConfig: {
-              aspectRatio: "1:1"
-          }
+          imageConfig: { aspectRatio: "1:1" }
       }
     });
 
@@ -429,7 +411,7 @@ export const generateSpartanAvatar = async (
     }
     return null;
   } catch (error) {
-    console.error('Avatar Generation Error:', error);
+    handleGeminiError(error);
     return null;
   }
 };

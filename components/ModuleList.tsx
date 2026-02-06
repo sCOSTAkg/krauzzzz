@@ -35,102 +35,89 @@ export const ModuleList: React.FC<ModuleListProps> = ({ modules, userProgress, o
             const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
             const isCompleted = progressPercent === 100;
             
-            // Refined Palette with Gradients
-            const getAccentStyles = (category: string) => {
-                switch(category) {
-                    case 'SALES': return { color: '#10B981', gradient: 'from-emerald-500/20 to-emerald-900/5', border: 'border-emerald-500/30' };
-                    case 'PSYCHOLOGY': return { color: '#8B5CF6', gradient: 'from-violet-500/20 to-violet-900/5', border: 'border-violet-500/30' };
-                    case 'TACTICS': return { color: '#F43F5E', gradient: 'from-rose-500/20 to-rose-900/5', border: 'border-rose-500/30' };
-                    default: return { color: '#6C5DD3', gradient: 'from-[#6C5DD3]/20 to-[#6C5DD3]/5', border: 'border-[#6C5DD3]/30' };
+            // Dynamic Gradients based on Category
+            const getGradient = (cat: string, locked: boolean) => {
+                if (locked) return 'bg-[#1F2128]';
+                switch(cat) {
+                    case 'SALES': return 'bg-gradient-to-br from-emerald-900/40 to-[#1F2128]';
+                    case 'PSYCHOLOGY': return 'bg-gradient-to-br from-violet-900/40 to-[#1F2128]';
+                    case 'TACTICS': return 'bg-gradient-to-br from-rose-900/40 to-[#1F2128]';
+                    default: return 'bg-gradient-to-br from-[#6C5DD3]/20 to-[#1F2128]';
                 }
             };
 
-            const style = getAccentStyles(module.category);
-            const moduleNum = (index + 1).toString().padStart(2, '0');
+            const accentColor = isLocked ? '#64748B' : (module.category === 'SALES' ? '#10B981' : module.category === 'PSYCHOLOGY' ? '#8B5CF6' : module.category === 'TACTICS' ? '#F43F5E' : '#6C5DD3');
 
             return (
                 <div 
                     key={module.id}
                     onClick={() => handleModuleClick(module, isLocked)}
                     className={`
-                        relative w-full rounded-3xl overflow-hidden transition-all duration-300 group select-none
-                        min-h-[100px] flex flex-col justify-between border
+                        relative w-full rounded-2xl overflow-hidden transition-all duration-200
+                        border border-white/5 flex flex-col justify-between
                         ${shakingId === module.id ? 'animate-shake' : ''}
-                        ${isLocked 
-                            ? 'opacity-60 grayscale bg-[#16181D] border-white/5' 
-                            : `cursor-pointer bg-[#1A1D24] ${style.border} hover:shadow-lg active:scale-[0.98]`
-                        }
+                        ${isLocked ? 'opacity-70 grayscale' : 'cursor-pointer hover:border-white/10 active:scale-[0.98] shadow-lg shadow-black/20'}
+                        ${getGradient(module.category, isLocked)}
                     `}
+                    style={{ minHeight: '110px' }}
                 >
-                    {/* Background Effects */}
-                    {!isLocked && (
-                        <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient} opacity-50 group-hover:opacity-80 transition-opacity`}></div>
-                    )}
-                    
-                    {/* Decorative Number */}
-                    <div className="absolute -right-1 -bottom-5 text-[4rem] font-black leading-none tracking-tighter opacity-[0.03] select-none pointer-events-none z-0" style={{ color: isLocked ? '#FFF' : style.color }}>
-                        {moduleNum}
-                    </div>
-
-                    <div className="relative z-10 p-4 flex flex-col h-full">
+                    <div className="p-4 flex flex-col h-full justify-between relative z-10">
+                        {/* Header */}
                         <div className="flex justify-between items-start gap-3">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span 
-                                        className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg border backdrop-blur-sm"
-                                        style={{ 
-                                            color: isLocked ? '#64748B' : style.color,
-                                            borderColor: isLocked ? '#334155' : `${style.color}40`,
-                                            backgroundColor: isLocked ? 'transparent' : `${style.color}10`
-                                        }}
-                                    >
-                                        {module.category}
-                                    </span>
-                                    {isCompleted && <span className="text-[9px] text-green-500 font-black">✓</span>}
-                                </div>
-                                <h3 className={`text-sm font-bold leading-snug line-clamp-2 ${isLocked ? 'text-slate-500' : 'text-white'}`}>
+                            <div className="flex-1">
+                                <span 
+                                    className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border mb-2 inline-block"
+                                    style={{ color: accentColor, borderColor: `${accentColor}30`, backgroundColor: `${accentColor}10` }}
+                                >
+                                    {module.category}
+                                </span>
+                                <h3 className={`text-sm font-bold leading-tight line-clamp-2 ${isLocked ? 'text-slate-500' : 'text-white'}`}>
                                     {module.title}
                                 </h3>
                             </div>
                             
-                            {/* Play/Lock Icon */}
-                            <div className={`w-9 h-9 rounded-2xl flex items-center justify-center border flex-shrink-0 transition-all ${
+                            {/* Icon State */}
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${
                                  isLocked 
-                                 ? 'border-white/5 text-slate-600 bg-white/5' 
-                                 : 'border-white/10 text-white bg-white/10 shadow-inner group-hover:scale-105'
-                             }`} style={{ borderColor: !isLocked ? `${style.color}30` : '' }}>
+                                 ? 'border-white/5 text-slate-600 bg-black/20' 
+                                 : 'border-white/10 text-white bg-white/5 shadow-inner'
+                             }`}>
                                  {isLocked ? (
-                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                  ) : (
-                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: style.color }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                                    isCompleted ? <span className="text-green-500 font-bold">✓</span> : 
+                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: accentColor }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                                  )}
                              </div>
                         </div>
 
-                        {/* Stats & Bar */}
+                        {/* Progress Bar */}
                         <div className="mt-4">
-                             <div className="flex justify-between items-end mb-2">
-                                 <span className="text-[10px] font-bold text-slate-400">
-                                     {completedCount} / {totalCount} уроков
+                             <div className="flex justify-between items-end mb-1.5">
+                                 <span className="text-[9px] font-bold text-slate-500">
+                                     {completedCount}/{totalCount}
                                  </span>
-                                 <span className="text-[10px] font-black" style={{ color: isLocked ? '#64748B' : style.color }}>
+                                 <span className="text-[9px] font-black" style={{ color: accentColor }}>
                                      {progressPercent}%
                                  </span>
                              </div>
                              
-                             <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                             <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden">
                                  <div 
-                                    className="h-full rounded-full transition-all duration-700 ease-out relative" 
+                                    className="h-full rounded-full transition-all duration-500 ease-out" 
                                     style={{ 
                                         width: `${progressPercent}%`, 
-                                        backgroundColor: isLocked ? '#334155' : style.color,
-                                        boxShadow: isLocked ? 'none' : `0 0 10px ${style.color}`
+                                        backgroundColor: accentColor,
+                                        boxShadow: isLocked ? 'none' : `0 0 8px ${accentColor}60`
                                     }}
-                                 >
-                                     {!isLocked && <div className="absolute inset-0 bg-white/30 w-full animate-shimmer"></div>}
-                                 </div>
+                                 ></div>
                              </div>
                         </div>
+                    </div>
+
+                    {/* Decorative Background Number */}
+                    <div className="absolute -right-2 -bottom-6 text-[5rem] font-black leading-none opacity-[0.03] select-none pointer-events-none text-white">
+                        {index + 1}
                     </div>
                 </div>
             );

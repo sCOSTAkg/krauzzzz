@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AppConfig, Module, UserProgress, Material, Stream, CalendarEvent, ArenaScenario, AppNotification, Lesson, UserRole, HomeworkType } from '../types';
+import { AppConfig, Module, UserProgress, Material, Stream, CalendarEvent, ArenaScenario, AppNotification, Lesson, UserRole, HomeworkType, AIProviderId } from '../types';
 import { Button } from './Button';
 import { telegram } from '../services/telegramService';
 
@@ -27,6 +27,19 @@ interface AdminDashboardProps {
   addToast: (type: 'success' | 'error' | 'info', message: string, link?: string) => void;
 }
 
+// Markdown Helper Component
+const MarkdownToolbar = ({ onInsert }: { onInsert: (tag: string, placeholder?: string) => void }) => (
+    <div className="flex gap-2 mb-2 overflow-x-auto no-scrollbar pb-1">
+        <button onClick={() => onInsert('**', 'bold')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 font-bold">B</button>
+        <button onClick={() => onInsert('*', 'italic')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 italic">I</button>
+        <button onClick={() => onInsert('\n# ', 'Header')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">H1</button>
+        <button onClick={() => onInsert('\n## ', 'Header')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">H2</button>
+        <button onClick={() => onInsert('[', 'Link](url)')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">🔗</button>
+        <button onClick={() => onInsert('\n- ', 'List Item')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5">List</button>
+        <button onClick={() => onInsert('`', 'code')} className="px-2 py-1 bg-white/5 rounded text-[10px] hover:bg-white/10 border border-white/5 font-mono">Code</button>
+    </div>
+);
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   config, onUpdateConfig, 
   modules, onUpdateModules, 
@@ -39,9 +52,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [notifTitle, setNotifTitle] = useState('');
   const [notifMsg, setNotifMsg] = useState('');
   const [notifType, setNotifType] = useState<AppNotification['type']>('INFO');
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   
   // AI Config State
   const [systemInstruction, setSystemInstruction] = useState(config.systemInstruction);
+  const [selectedProvider, setSelectedProvider] = useState<AIProviderId>(config.aiConfig?.activeProvider || 'GOOGLE_GEMINI');
+  const [apiKeys, setApiKeys] = useState(config.aiConfig?.apiKeys || {});
 
   // Course Editing State
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null);
@@ -64,9 +80,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleSaveAIConfig = () => {
-      onUpdateConfig({ ...config, systemInstruction });
+      onUpdateConfig({ 
+          ...config, 
+          systemInstruction,
+          aiConfig: {
+              ...config.aiConfig,
+              activeProvider: selectedProvider,
+              apiKeys: { ...config.aiConfig.apiKeys, ...apiKeys }
+          }
+      });
       telegram.haptic('success');
-      addToast('success', 'Промпт ИИ обновлен');
+      addToast('success', 'Конфигурация ИИ сохранена');
   };
 
   const handleDeleteModule = (id: string, e: React.MouseEvent) => {
@@ -115,6 +139,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       telegram.haptic('success');
       addToast('success', 'Урок сохранен');
   };
+
+  const insertMarkdown = (tag: string, placeholder: string = '') => {
+      if (!editingLessonState) return;
+      const textarea = document.getElementById('lessonContentEditor') as HTMLTextAreaElement;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = editingLessonState.lesson.content;
+      const before = text.substring(0, start);
+      const after = text.substring(end, text.length);
+      const selection = text.substring(start, end);
+
+      const newContent = before + tag + (selection || placeholder) + (tag.trim().length > 1 && !tag.startsWith('\n') ? tag : '') + after;
+      
+      setEditingLessonState({
+          ...editingLessonState,
+          lesson: { ...editingLessonState.lesson, content: newContent }
+      });
+      
+      // Focus back after state update (simplified)
+      setTimeout(() => textarea.focus(), 0);
+  };
+
+  // Filter Users
+  const filteredUsers = users.filter(u => 
+      u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
+      u.role.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      u.telegramUsername?.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen pb-40 pt-[calc(var(--safe-top)+20px)] px-6 space-y-8 animate-fade-in bg-body">
@@ -172,22 +226,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         value={systemInstruction}
                         onChange={(e) => setSystemInstruction(e.target.value)}
                         className="w-full h-48 bg-black/30 border border-white/10 rounded-2xl p-4 text-white/90 text-sm leading-relaxed font-mono outline-none focus:border-purple-500 transition-colors resize-none mb-4"
+                        placeholder="Ты — Командир элитного отряда..."
                     />
-                    <Button onClick={handleSaveAIConfig} fullWidth className="!bg-purple-600 hover:!bg-purple-500">Сохранить Личность</Button>
                 </div>
 
                 <div className="bg-surface border border-border-color p-6 rounded-[2.5rem]">
-                    <h3 className="font-bold text-text-primary mb-4">Настройки Модели</h3>
-                    <div className="space-y-2">
-                         <div className="p-4 bg-body rounded-2xl border border-border-color flex justify-between items-center">
-                             <span className="text-sm font-bold">Google Gemini 1.5 Flash</span>
-                             <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-1 rounded-lg font-black uppercase">Active</span>
-                         </div>
-                         <div className="p-4 bg-body rounded-2xl border border-border-color flex justify-between items-center opacity-50">
-                             <span className="text-sm font-bold">OpenAI GPT-4o</span>
-                             <span className="text-[10px] text-text-secondary px-2 py-1 rounded-lg font-black uppercase">Disabled</span>
-                         </div>
+                    <h3 className="font-bold text-text-primary mb-4">Настройки Провайдера</h3>
+                    
+                    {/* Provider Selector */}
+                    <div className="space-y-4 mb-6">
+                        <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Основная Модель</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {['GOOGLE_GEMINI', 'OPENAI_GPT4', 'GROQ', 'OPENROUTER'].map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => setSelectedProvider(p as AIProviderId)}
+                                    className={`py-3 px-2 rounded-xl text-[9px] font-black uppercase border transition-all ${selectedProvider === p ? 'bg-[#6C5DD3] text-white border-[#6C5DD3]' : 'border-border-color text-text-secondary hover:bg-white/5'}`}
+                                >
+                                    {p.replace('_', ' ')}
+                                </button>
+                            ))}
+                        </div>
                     </div>
+
+                    {/* API Keys */}
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black uppercase text-text-secondary tracking-widest">API Ключи (Скрыто)</label>
+                        
+                        <div className="space-y-2">
+                            <input 
+                                type="password"
+                                value={apiKeys.google || ''}
+                                onChange={(e) => setApiKeys({...apiKeys, google: e.target.value})}
+                                placeholder="Google Gemini API Key"
+                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                            />
+                            <input 
+                                type="password"
+                                value={apiKeys.groq || ''}
+                                onChange={(e) => setApiKeys({...apiKeys, groq: e.target.value})}
+                                placeholder="Groq API Key"
+                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                            />
+                            <input 
+                                type="password"
+                                value={apiKeys.openai || ''}
+                                onChange={(e) => setApiKeys({...apiKeys, openai: e.target.value})}
+                                placeholder="OpenAI API Key"
+                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                            />
+                            <input 
+                                type="password"
+                                value={apiKeys.openrouter || ''}
+                                onChange={(e) => setApiKeys({...apiKeys, openrouter: e.target.value})}
+                                placeholder="OpenRouter API Key"
+                                className="w-full bg-body border border-border-color p-3 rounded-xl text-xs font-mono outline-none focus:border-[#6C5DD3]"
+                            />
+                        </div>
+                    </div>
+
+                    <Button onClick={handleSaveAIConfig} fullWidth className="!mt-6 !bg-[#6C5DD3]">Сохранить Конфигурацию</Button>
                 </div>
             </div>
         )}
@@ -256,7 +354,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* --- MODAL: EDIT LESSON --- */}
         {editingLessonState && (
             <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6">
-                <div className="bg-[#1F2128] w-full sm:max-w-lg h-[85vh] sm:h-auto rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 flex flex-col shadow-2xl animate-slide-up">
+                <div className="bg-[#1F2128] w-full sm:max-w-lg h-[90vh] sm:h-[85vh] rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-white/10 flex flex-col shadow-2xl animate-slide-up">
                     <div className="p-6 border-b border-white/10 flex justify-between items-center bg-[#14161B] rounded-t-[2.5rem]">
                         <h3 className="text-lg font-black text-white">Редактор Урока</h3>
                         <button onClick={() => setEditingLessonState(null)} className="text-white/40 hover:text-white">✕</button>
@@ -277,8 +375,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              <textarea 
                                  value={editingLessonState.lesson.description}
                                  onChange={(e) => setEditingLessonState({ ...editingLessonState, lesson: { ...editingLessonState.lesson, description: e.target.value } })}
-                                 className="w-full bg-black/20 border border-white/10 p-3 rounded-xl text-xs text-white/80 h-20 resize-none outline-none focus:border-[#6C5DD3]"
+                                 className="w-full bg-black/20 border border-white/10 p-3 rounded-xl text-xs text-white/80 h-16 resize-none outline-none focus:border-[#6C5DD3]"
                              />
+                        </div>
+
+                         <div className="space-y-1">
+                             <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">Контент Урока (Markdown)</label>
+                             <div className="bg-black/20 border border-white/10 rounded-xl p-2 focus-within:border-[#6C5DD3]">
+                                <MarkdownToolbar onInsert={insertMarkdown} />
+                                <textarea 
+                                    id="lessonContentEditor"
+                                    value={editingLessonState.lesson.content}
+                                    onChange={(e) => setEditingLessonState({ ...editingLessonState, lesson: { ...editingLessonState.lesson, content: e.target.value } })}
+                                    className="w-full bg-transparent text-sm font-mono text-white/90 outline-none h-64 resize-y leading-relaxed"
+                                />
+                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -321,7 +432,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              <textarea 
                                  value={editingLessonState.lesson.homeworkTask}
                                  onChange={(e) => setEditingLessonState({ ...editingLessonState, lesson: { ...editingLessonState.lesson, homeworkTask: e.target.value } })}
-                                 className="w-full bg-black/20 border border-white/10 p-3 rounded-xl text-sm text-white h-24 resize-none outline-none focus:border-[#6C5DD3]"
+                                 className="w-full bg-black/20 border border-white/10 p-3 rounded-xl text-sm text-white h-20 resize-none outline-none focus:border-[#6C5DD3]"
                              />
                         </div>
 
@@ -330,7 +441,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                              <textarea 
                                  value={editingLessonState.lesson.aiGradingInstruction}
                                  onChange={(e) => setEditingLessonState({ ...editingLessonState, lesson: { ...editingLessonState.lesson, aiGradingInstruction: e.target.value } })}
-                                 className="w-full bg-red-500/5 border border-red-500/20 p-3 rounded-xl text-xs font-mono text-red-200/80 h-32 resize-none outline-none focus:border-red-500"
+                                 className="w-full bg-red-500/5 border border-red-500/20 p-3 rounded-xl text-xs font-mono text-red-200/80 h-24 resize-none outline-none focus:border-red-500"
                              />
                         </div>
                     </div>
@@ -347,7 +458,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* --- VIEW: USERS --- */}
         {activeSubTab === 'USERS' && (
              <div className="space-y-4 animate-slide-up">
-                 {users.map((user) => (
+                 <input 
+                    type="text" 
+                    placeholder="Поиск по имени, роли или telegram..." 
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-full bg-surface border border-border-color p-4 rounded-2xl text-sm outline-none focus:border-[#6C5DD3]"
+                 />
+                 
+                 {filteredUsers.length === 0 && <p className="text-center text-text-secondary text-xs uppercase pt-4">Пользователи не найдены</p>}
+
+                 {filteredUsers.map((user) => (
                      <div key={user.telegramId || user.name} className="bg-surface border border-border-color p-5 rounded-[2rem] flex items-center gap-4">
                          <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}`} className="w-10 h-10 rounded-full object-cover bg-body" />
                          <div className="flex-1 min-w-0">

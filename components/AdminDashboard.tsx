@@ -51,6 +51,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [notifMsg, setNotifMsg] = useState('');
   const [notifType, setNotifType] = useState<AppNotification['type']>('INFO');
 
+  // --- ACTIONS ---
+  const sendNotif = () => {
+      if(!notifTitle || !notifMsg) return;
+      onSendBroadcast({
+          id: Date.now().toString(),
+          title: notifTitle,
+          message: notifMsg,
+          type: notifType,
+          date: new Date().toISOString(),
+          targetRole: 'ALL'
+      });
+      setNotifTitle('');
+      setNotifMsg('');
+  };
+
   // --- USERS MANAGEMENT ---
   const renderUsers = () => {
       const handleUserSave = (u: UserProgress) => {
@@ -507,54 +522,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const maintenanceMode = config?.features?.maintenanceMode || false;
       const appName = config?.appName || 'SalesPro';
 
-      const sendNotif = () => {
-          if(!notifTitle || !notifMsg) return;
-          onSendBroadcast({
-              id: Date.now().toString(),
-              title: notifTitle,
-              message: notifMsg,
-              type: notifType,
-              date: new Date().toISOString(),
-              targetRole: 'ALL'
-          });
-          setNotifTitle('');
-          setNotifMsg('');
-      };
-
-      const safeNotifications = Array.isArray(notifications) ? notifications : [];
-
       return (
           <div className="space-y-8 pb-20 animate-fade-in">
-              <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5 space-y-4">
-                  <h3 className="font-black text-slate-900 dark:text-white uppercase">Отправить оповещение</h3>
-                  <input value={notifTitle} onChange={e => setNotifTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 p-3 rounded-xl text-sm font-bold border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white outline-none focus:border-[#6C5DD3]" placeholder="Заголовок" />
-                  <textarea value={notifMsg} onChange={e => setNotifMsg(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 p-3 rounded-xl text-sm border border-slate-200 dark:border-white/10 h-24 resize-none text-slate-900 dark:text-white outline-none focus:border-[#6C5DD3]" placeholder="Сообщение для всех..." />
-                  <div className="flex gap-2 flex-wrap">
-                      {['INFO', 'SUCCESS', 'WARNING', 'ALERT'].map(t => (
-                          <button key={t} onClick={() => setNotifType(t as any)} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border transition-colors ${notifType === t ? 'bg-[#6C5DD3] text-white border-[#6C5DD3]' : 'border-slate-200 dark:border-white/10 text-slate-500'}`}>{t}</button>
-                      ))}
-                  </div>
-                  <Button onClick={sendNotif} fullWidth>Отправить Всем</Button>
-              </div>
-
-              <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5 space-y-4">
-                  <div className="flex justify-between items-center">
-                      <h3 className="font-black text-slate-900 dark:text-white uppercase">История ({safeNotifications.length})</h3>
-                      <button onClick={onClearNotifications} className="text-red-500 text-[10px] font-bold uppercase hover:underline">Очистить</button>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                      {safeNotifications.map(n => (
-                          <div key={n.id} className="p-2 border-l-2 border-slate-300 dark:border-white/20 pl-3">
-                              <div className="flex justify-between">
-                                <span className="text-[10px] font-bold text-slate-500">{new Date(n.date).toLocaleDateString()}</span>
-                                <span className="text-[10px] uppercase font-black text-[#6C5DD3]">{n.type}</span>
-                              </div>
-                              <p className="text-xs text-slate-800 dark:text-white font-medium truncate">{n.title}</p>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-
               <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5 space-y-4">
                   <h3 className="font-black text-slate-900 dark:text-white uppercase">Конфигурация</h3>
                   
@@ -606,6 +575,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const renderOverview = () => {
+    const safeNotifications = Array.isArray(notifications) ? notifications : [];
+
     return (
     <div className="space-y-6 animate-fade-in">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -621,6 +592,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
                 </div>
             ))}
+        </div>
+        
+        {/* Broadcast System - Moved to Overview */}
+        <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5 space-y-4 shadow-lg shadow-[#6C5DD3]/5">
+            <h3 className="font-black text-slate-900 dark:text-white uppercase flex items-center gap-2">
+                <span>📡</span> Отправить оповещение
+            </h3>
+            <input value={notifTitle} onChange={e => setNotifTitle(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 p-3 rounded-xl text-sm font-bold border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white outline-none focus:border-[#6C5DD3]" placeholder="Заголовок" />
+            <textarea value={notifMsg} onChange={e => setNotifMsg(e.target.value)} className="w-full bg-slate-50 dark:bg-black/20 p-3 rounded-xl text-sm border border-slate-200 dark:border-white/10 h-24 resize-none text-slate-900 dark:text-white outline-none focus:border-[#6C5DD3]" placeholder="Сообщение для всех..." />
+            <div className="flex gap-2 flex-wrap">
+                {['INFO', 'SUCCESS', 'WARNING', 'ALERT'].map(t => (
+                    <button key={t} onClick={() => setNotifType(t as any)} className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border transition-colors ${notifType === t ? 'bg-[#6C5DD3] text-white border-[#6C5DD3]' : 'border-slate-200 dark:border-white/10 text-slate-500'}`}>{t}</button>
+                ))}
+            </div>
+            <Button onClick={sendNotif} fullWidth>Отправить Всем</Button>
+        </div>
+
+        {/* Recent History */}
+        <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5 space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="font-black text-slate-900 dark:text-white uppercase">История ({safeNotifications.length})</h3>
+                <button onClick={onClearNotifications} className="text-red-500 text-[10px] font-bold uppercase hover:underline">Очистить</button>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {safeNotifications.map(n => (
+                    <div key={n.id} className="p-2 border-l-2 border-slate-300 dark:border-white/20 pl-3">
+                        <div className="flex justify-between">
+                        <span className="text-[10px] font-bold text-slate-500">{new Date(n.date).toLocaleDateString()}</span>
+                        <span className="text-[10px] uppercase font-black text-[#6C5DD3]">{n.type}</span>
+                        </div>
+                        <p className="text-xs text-slate-800 dark:text-white font-medium truncate">{n.title}</p>
+                    </div>
+                ))}
+            </div>
         </div>
         
         <div className="bg-[#6C5DD3] text-white p-6 rounded-[2.5rem] relative overflow-hidden">

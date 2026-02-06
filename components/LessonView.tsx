@@ -58,11 +58,13 @@ export const LessonView: React.FC<LessonViewProps> = ({
       title: lesson.title,
       xpReward: lesson.xpReward,
       description: lesson.description,
+      content: lesson.content,
       homeworkTask: lesson.homeworkTask,
       aiGradingInstruction: lesson.aiGradingInstruction
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Stats for current lesson
   const questionsAskedCount = userProgress.stats?.questionsAsked?.[lesson.id] || 0;
@@ -74,6 +76,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
           title: lesson.title,
           xpReward: lesson.xpReward,
           description: lesson.description,
+          content: lesson.content,
           homeworkTask: lesson.homeworkTask,
           aiGradingInstruction: lesson.aiGradingInstruction
       });
@@ -149,6 +152,31 @@ export const LessonView: React.FC<LessonViewProps> = ({
           setIsEditing(false);
           telegram.haptic('success');
       }
+  };
+
+  const insertMarkdown = (prefix: string, suffix: string = '') => {
+      const textarea = contentTextareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = editData.content;
+      
+      const before = text.substring(0, start);
+      const selection = text.substring(start, end);
+      const after = text.substring(end);
+
+      const newText = before + prefix + selection + suffix + after;
+      setEditData({...editData, content: newText});
+      
+      setTimeout(() => {
+          textarea.focus();
+          if (start === end && suffix) {
+             textarea.setSelectionRange(start + prefix.length, start + prefix.length);
+          } else {
+             textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+          }
+      }, 0);
   };
 
   const videoUrl = lesson.videoUrl || parentModule?.videoUrl;
@@ -234,6 +262,33 @@ export const LessonView: React.FC<LessonViewProps> = ({
                         onChange={(e) => setEditData({...editData, description: e.target.value})}
                         className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3]"
                         placeholder="Краткое описание сути урока..."
+                    />
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Основной Контент (Markdown)</label>
+                    
+                    {/* Markdown Toolbar */}
+                    <div className="flex gap-1 mb-2 bg-black/20 p-2 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
+                        <button onClick={() => insertMarkdown('**', '**')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs font-bold transition-colors" title="Bold">B</button>
+                        <button onClick={() => insertMarkdown('*', '*')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs italic transition-colors" title="Italic">I</button>
+                        <button onClick={() => insertMarkdown('# ')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs font-bold transition-colors" title="H1">H1</button>
+                        <button onClick={() => insertMarkdown('## ')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs font-bold transition-colors" title="H2">H2</button>
+                        <div className="w-px bg-white/10 mx-1 h-6 self-center"></div>
+                        <button onClick={() => insertMarkdown('\n- ')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs transition-colors" title="List">• List</button>
+                        <button onClick={() => insertMarkdown('\n1. ')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs transition-colors" title="Numbered List">1. List</button>
+                        <div className="w-px bg-white/10 mx-1 h-6 self-center"></div>
+                        <button onClick={() => insertMarkdown('> ')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs transition-colors" title="Quote">""</button>
+                        <button onClick={() => insertMarkdown('[', '](url)')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs transition-colors" title="Link">🔗</button>
+                        <button onClick={() => insertMarkdown('`', '`')} className="p-2 min-w-[32px] rounded-lg hover:bg-white/10 text-white text-xs font-mono transition-colors" title="Code">{'<>'}</button>
+                    </div>
+
+                    <textarea 
+                        ref={contentTextareaRef}
+                        value={editData.content}
+                        onChange={(e) => setEditData({...editData, content: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm outline-none focus:border-[#6C5DD3] h-64 font-mono text-xs"
+                        placeholder="# Заголовок..."
                     />
                 </div>
 

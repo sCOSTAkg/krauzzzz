@@ -164,14 +164,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onUpdateModules(updatedModules);
   };
 
-  const handleDeleteModule = (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (confirm('Удалить модуль?')) {
-          onUpdateModules(modules.filter(m => m.id !== id));
-          telegram.haptic('warning');
-      }
-  };
-
   // --- ARENA CRUD ---
   const saveScenario = () => {
       if (!editingScenario?.title || !editingScenario.clientRole) return;
@@ -253,7 +245,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
   };
 
-  // ... (Other handlers like toggleUserRole, toggleFeature, handleSaveLesson, etc. remain same)
   const toggleUserRole = (user: UserProgress) => {
       if (user.telegramId === currentUser.telegramId || user.name === currentUser.name) {
            addToast('error', 'Нельзя изменить роль самому себе');
@@ -279,23 +270,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       telegram.haptic('medium');
   };
 
-  const handleSaveLesson = () => {
-      if (!editingLessonState) return;
-      const updatedModules = modules.map(m => {
-          if (m.id === editingLessonState.moduleId) {
-              return {
-                  ...m,
-                  lessons: m.lessons.map(l => l.id === editingLessonState.lesson.id ? editingLessonState.lesson : l)
-              };
-          }
-          return m;
-      });
-      onUpdateModules(updatedModules);
-      setEditingLessonState(null);
-      telegram.haptic('success');
-      addToast('success', 'Урок сохранен');
-  };
-
   // Filter Users
   const filteredUsers = users.filter(u => 
       u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
@@ -316,7 +290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         </div>
 
-        {/* ... (Overview & Neural Core - same as before) ... */}
+        {/* --- VIEW: OVERVIEW --- */}
         {activeSubTab === 'OVERVIEW' && (
             <div className="space-y-6 animate-slide-up">
                 {/* Stats */}
@@ -349,10 +323,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
-        {/* --- VIEW: ARENA (UPDATED) --- */}
+        {/* --- VIEW: ARENA --- */}
         {activeSubTab === 'ARENA' && (
              <div className="space-y-4 animate-slide-up">
-                 {scenarios.map((sc, i) => (
+                 {scenarios.map((sc) => (
                      <div key={sc.id} className="bg-surface border border-border-color p-5 rounded-[2rem] relative overflow-hidden group">
                          <div className={`absolute top-0 left-0 w-1 h-full ${sc.difficulty === 'Hard' ? 'bg-red-500' : sc.difficulty === 'Medium' ? 'bg-orange-500' : 'bg-green-500'}`}></div>
                          <div className="flex justify-between items-start mb-2 pl-3">
@@ -392,7 +366,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* --- VIEW: STREAMS & EVENTS --- */}
         {activeSubTab === 'STREAMS' && (
             <div className="space-y-8 animate-slide-up">
-                
                 {/* Streams Section */}
                 <div className="space-y-4">
                     <h3 className="text-xs font-black uppercase tracking-widest text-[#6C5DD3]">Эфиры (Streams)</h3>
@@ -465,10 +438,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
         )}
 
-        {/* ... (Other sections like COURSE, USERS, SETTINGS etc.) ... */}
+        {/* --- VIEW: COURSE --- */}
         {activeSubTab === 'COURSE' && (
              <div className="space-y-4 animate-slide-up">
-                 {/* Existing Module Editing UI */}
                  {modules.map((mod, i) => {
                      const isExpanded = expandedModuleId === mod.id;
                      const previewThumb = mod.imageUrl || getYouTubeThumbnail(mod.videoUrl);
@@ -512,7 +484,142 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              </div>
         )}
 
-        {/* ... (USERS, SETTINGS etc.) ... */}
+        {/* --- VIEW: USERS (User Management) --- */}
+        {activeSubTab === 'USERS' && (
+            <div className="space-y-4 animate-slide-up">
+                <input 
+                    value={userSearchTerm}
+                    onChange={e => setUserSearchTerm(e.target.value)}
+                    placeholder="Поиск бойца..."
+                    className="w-full bg-surface border border-border-color p-4 rounded-2xl text-sm outline-none focus:border-[#6C5DD3] transition-all"
+                />
+                {filteredUsers.map(user => (
+                    <div key={user.telegramId} className="bg-surface border border-border-color p-4 rounded-2xl flex items-center justify-between group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-body overflow-hidden">
+                                <img src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.name}`} className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-text-primary text-sm">{user.name}</h4>
+                                <div className="flex gap-2 items-center">
+                                    <span className="text-[9px] font-black text-text-secondary uppercase">{user.role}</span>
+                                    <span className="text-[9px] text-text-secondary">XP: {user.xp}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={() => toggleUserRole(user)} className="px-3 py-1.5 rounded-lg bg-body text-[9px] font-black uppercase border border-border-color hover:border-[#6C5DD3] transition-colors">
+                            {user.role === 'ADMIN' ? 'Demote' : 'Promote'}
+                        </button>
+                    </div>
+                ))}
+            </div>
+        )}
+
+        {/* --- VIEW: SETTINGS (Config) --- */}
+        {activeSubTab === 'SETTINGS' && (
+            <div className="space-y-6 animate-slide-up">
+                {/* Feature Toggles */}
+                <div className="bg-surface border border-border-color p-6 rounded-[2.5rem] space-y-4">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-[#6C5DD3]">Системные Настройки</h3>
+                    {Object.entries(config.features).map(([key, value]) => (
+                        <div key={key} className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-text-primary capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                            <button 
+                                onClick={() => toggleFeature(key as any)}
+                                className={`w-12 h-6 rounded-full p-1 transition-colors ${value ? 'bg-[#6C5DD3]' : 'bg-body border border-border-color'}`}
+                            >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${value ? 'translate-x-6' : ''}`} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+
+                {/* AI Configuration */}
+                <div className="bg-surface border border-border-color p-6 rounded-[2.5rem] space-y-4">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-[#6C5DD3]">AI Configuration</h3>
+                    <select 
+                        value={selectedProvider} 
+                        onChange={e => setSelectedProvider(e.target.value as AIProviderId)}
+                        className="w-full bg-body p-3 rounded-xl text-sm border border-border-color outline-none"
+                    >
+                        <option value="GOOGLE_GEMINI">Google Gemini</option>
+                        <option value="OPENAI_GPT4">OpenAI GPT-4</option>
+                        <option value="ANTHROPIC_CLAUDE">Anthropic Claude</option>
+                        <option value="GROQ">Groq (Llama 3)</option>
+                        <option value="OPENROUTER">OpenRouter</option>
+                    </select>
+                    
+                    <div className="space-y-2">
+                        <input 
+                            type="password"
+                            value={apiKeys.google || ''}
+                            onChange={e => setApiKeys({...apiKeys, google: e.target.value})}
+                            placeholder="Google Gemini API Key"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none"
+                        />
+                        <input 
+                            type="password"
+                            value={apiKeys.openai || ''}
+                            onChange={e => setApiKeys({...apiKeys, openai: e.target.value})}
+                            placeholder="OpenAI API Key"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none"
+                        />
+                        <input 
+                            type="password"
+                            value={apiKeys.groq || ''}
+                            onChange={e => setApiKeys({...apiKeys, groq: e.target.value})}
+                            placeholder="Groq API Key"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none"
+                        />
+                        <input 
+                            type="password"
+                            value={apiKeys.openrouter || ''}
+                            onChange={e => setApiKeys({...apiKeys, openrouter: e.target.value})}
+                            placeholder="OpenRouter API Key"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none"
+                        />
+                    </div>
+
+                    <textarea 
+                        value={systemInstruction}
+                        onChange={e => setSystemInstruction(e.target.value)}
+                        className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none h-24 resize-none"
+                        placeholder="System Instruction..."
+                    />
+                    
+                    <Button onClick={handleSaveAIConfig} fullWidth className="!rounded-xl">Сохранить AI Config</Button>
+                </div>
+
+                {/* Airtable Configuration */}
+                <div className="bg-surface border border-border-color p-6 rounded-[2.5rem] space-y-4">
+                    <h3 className="font-black text-xs uppercase tracking-widest text-[#6C5DD3] flex items-center gap-2">
+                        <span>📊</span> CRM Integration (Airtable)
+                    </h3>
+                    <div className="space-y-2">
+                        <input 
+                            type="password"
+                            value={airtableConfig.pat}
+                            onChange={e => setAirtableConfig({...airtableConfig, pat: e.target.value})}
+                            placeholder="Personal Access Token (PAT)"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none font-mono"
+                        />
+                        <input 
+                            value={airtableConfig.baseId}
+                            onChange={e => setAirtableConfig({...airtableConfig, baseId: e.target.value})}
+                            placeholder="Base ID (app...)"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none font-mono"
+                        />
+                        <input 
+                            value={airtableConfig.tableName}
+                            onChange={e => setAirtableConfig({...airtableConfig, tableName: e.target.value})}
+                            placeholder="Table Name (e.g. Users)"
+                            className="w-full bg-body p-3 rounded-xl text-xs border border-border-color outline-none"
+                        />
+                    </div>
+                    <Button onClick={handleSaveAirtableConfig} fullWidth className="!rounded-xl">Сохранить CRM</Button>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

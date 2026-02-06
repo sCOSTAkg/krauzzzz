@@ -14,10 +14,30 @@ const handleGeminiError = (error: any): string => {
     
     // Check for Rate Limit (429) or Quota Exceeded (429 Resource Exhausted)
     if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota')) {
-        return '⚠️ Системы перегружены (Quota Exceeded). Пожалуйста, попробуйте позже или смените API ключ в настройках.';
+        return '⚠️ Лимит запросов исчерпан (429). Попробуйте позже или проверьте квоты API.';
+    }
+    
+    if (errStr.includes('400') && errStr.includes('User location is not supported')) {
+        return '⚠️ Ваш регион не поддерживается API (400). Используйте VPN (USA/EU) или другой API ключ.';
     }
     
     return 'Ошибка канала связи с ИИ.';
+};
+
+// Retry Helper with Exponential Backoff
+const retryOperation = async <T>(operation: () => Promise<T>, retries = 2, delay = 2000): Promise<T> => {
+    try {
+        return await operation();
+    } catch (error: any) {
+        const errStr = error.toString();
+        // Retry on 429 (Too Many Requests), 503 (Service Unavailable) or Quota errors
+        if (retries > 0 && (errStr.includes('429') || errStr.includes('503') || errStr.includes('quota'))) {
+            console.warn(`Gemini API Retry (${retries} left) due to error:`, errStr);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return retryOperation(operation, retries - 1, delay * 2);
+        }
+        throw error;
+    }
 };
 
 export const createChatSession = (customInstruction?: string): Chat => {
@@ -25,14 +45,14 @@ export const createChatSession = (customInstruction?: string): Chat => {
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
-      systemInstruction: customInstruction || DEFAULT_SYSTEM_INSTRUCTION,
-    },
+      systemInstruction: customInstruction || DEFAULT_SYSTEM_INSTRUCTION
+    }
   });
 };
 
 export const sendMessageToGemini = async (chat: Chat, message: string): Promise<string> => {
   try {
-    const result: GenerateContentResponse = await chat.sendMessage({ message });
+    const result: GenerateContentResponse = await retryOperation(() => chat.sendMessage({ message }));
     return result.text || 'Связь с штабом потеряна.';
   } catch (error) {
     return handleGeminiError(error);
@@ -51,8 +71,8 @@ export const createArenaSession = (clientRole: string, objective: string): Chat 
   return ai.chats.create({
     model: 'gemini-3-flash-preview',
     config: {
-      systemInstruction,
-    },
+      systemInstruction
+    }
   });
 };
 
@@ -78,14 +98,14 @@ export const getArenaHint = async (
       Lang: Russian.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await retryOperation(() => ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: { 
           maxOutputTokens: 30,
           thinkingConfig: { thinkingBudget: 0 } 
       } 
-    });
+    }));
 
     return response.text || null;
   } catch (error) {
@@ -113,25 +133,24 @@ ${history.map(m => `${m.role === 'user' ? 'Продавец' : 'Клиент'}: 
 3. 2 критические ошибки или зоны роста.
 `;
 
-    let response;
-    try {
-        response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', 
-            contents: prompt,
-        });
-    } catch (e: any) {
-        if (e.toString().includes('429') || e.toString().includes('quota')) throw e; // Don't retry quota errors
-        
-        if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
-            console.warn('Evaluation fallback to Flash');
-            response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview', 
-                contents: prompt,
+    const response = await retryOperation(async () => {
+        try {
+            return await ai.models.generateContent({
+                model: 'gemini-3-pro-preview', 
+                contents: prompt
             });
-        } else {
+        } catch (e: any) {
+            // Fallback inside retry logic if 403/404 occur for Pro model
+            if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
+                console.warn('Evaluation fallback to Flash');
+                return await ai.models.generateContent({
+                    model: 'gemini-3-flash-preview', 
+                    contents: prompt
+                });
+            }
             throw e;
         }
-    }
+    });
 
     return response.text || 'Командир не смог расшифровать отчет о бое.';
   } catch (error) {
@@ -177,7 +196,7 @@ export const checkHomeworkWithAI = async (
           `
       });
   
-      const response = await ai.models.generateContent({
+      const response = await retryOperation(() => ai.models.generateContent({
         model: 'gemini-3-flash-preview', 
         contents: { parts },
         config: {
@@ -197,7 +216,7 @@ export const checkHomeworkWithAI = async (
                 required: ["passed", "feedback"]
             }
         }
-      });
+      }));
   
       const resultText = response.text;
       if (!resultText) throw new Error('Empty AI response');
@@ -219,8 +238,7 @@ export const checkHomeworkWithAI = async (
     } catch (error) {
       const msg = handleGeminiError(error);
       return {
-          passed: true, // Fail open if AI is down/quota limited so student isn't blocked? Or fail closed?
-                        // "Fail Open" (True) allows progress, but marks it.
+          passed: true, 
           feedback: `[SYSTEM]: ${msg} (Задание принято условно)`
       };
     }
@@ -277,35 +295,37 @@ export const consultSystemAgent = async (
         For SEND_NOTIFICATION, payload: AppNotification
         `;
 
-        let response;
-        try {
-            response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview', 
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                }
-            });
-        } catch (e: any) {
-             if (e.toString().includes('429')) return { action: 'NO_ACTION', reason: 'AI Quota Exceeded', payload: {} };
-             
-            // Fallback for 403 (Permission Denied) or 404 (Not Found - model)
-            if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
-                console.warn('System Agent: Falling back to Flash model due to permissions.');
-                response = await ai.models.generateContent({
-                    model: 'gemini-3-flash-preview', 
+        const response = await retryOperation(async () => {
+            try {
+                return await ai.models.generateContent({
+                    model: 'gemini-3-pro-preview', 
                     contents: prompt,
                     config: {
-                        responseMimeType: "application/json",
+                        responseMimeType: "application/json"
                     }
                 });
-            } else {
+            } catch (e: any) {
+                // Fallback for 403 (Permission Denied) or 404
+                if (e.toString().includes('403') || e.toString().includes('404') || e.status === 403) {
+                    console.warn('System Agent: Falling back to Flash model due to permissions.');
+                    return await ai.models.generateContent({
+                        model: 'gemini-3-flash-preview', 
+                        contents: prompt,
+                        config: {
+                            responseMimeType: "application/json"
+                        }
+                    });
+                }
                 throw e;
             }
-        }
+        });
 
         return JSON.parse(response.text || '{ "action": "NO_ACTION", "reason": "AI Failed", "payload": {} }');
-    } catch (e) {
+    } catch (e: any) {
+        // If 429 persists even after retries
+        if (e.toString().includes('429') || e.toString().includes('quota')) {
+             return { action: 'NO_ACTION', reason: 'AI Quota Exceeded', payload: {} };
+        }
         console.error('System Agent Error:', e);
         return { action: 'NO_ACTION', reason: 'Error in agent brain', payload: {} };
     }
@@ -323,7 +343,7 @@ export const verifyStoryScreenshot = async (base64Image: string): Promise<boolea
         Return JSON: { "isStory": boolean }
         `;
 
-        const response = await ai.models.generateContent({
+        const response = await retryOperation(() => ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: {
                 parts: [
@@ -339,7 +359,7 @@ export const verifyStoryScreenshot = async (base64Image: string): Promise<boolea
                     required: ["isStory"]
                 }
             }
-        });
+        }));
 
         const result = JSON.parse(response.text || '{}');
         return !!result.isStory;
@@ -354,14 +374,14 @@ const ARMOR_DESCRIPTIONS: Record<string, string> = {
     'Classic Bronze': 'Traditional Spartan bronze cuirass with defined muscle sculpting, deep red cape draped over shoulders, leather straps, and Corinthian helmet details on the pauldrons. Battle-worn texture with scratches.',
     'Midnight Stealth': 'Sleek, matte black obsidian tactical armor, dark grey cowl/hood casting shadows over the forehead, faint purple energy accents in armor crevices, lightweight stealth aesthetic.',
     'Golden God': 'Highly polished, ceremonial gold plate armor with intricate divine engravings, radiating a faint warm glow, white and gold silk cape, angelic warrior aesthetic.',
-    'Futuristic Chrome': 'High-tech silver chrome plating with segmented plates, neon blue light strips integrated into the chest and shoulders, cybernetic aesthetic, futuristic visor attachment on chest.',
+    'Futuristic Chrome': 'High-tech silver chrome plating with segmented plates, neon blue light strips integrated into the chest and shoulders, cybernetic aesthetic, futuristic visor attachment on chest.'
 };
 
 const BACKGROUND_DESCRIPTIONS: Record<string, string> = {
     'Ancient Battlefield': 'A dusty, epic battlefield at sunset (golden hour), scattered shields and spears in the background, haze and smoke, dramatic cinematic lighting.',
     'Temple of Olympus': 'Ethereal mountaintop temple, white marble columns in background, bright blue sky with soft clouds, divine bright lighting, bloom effect.',
     'Stormy Peak': 'Dark, moody mountain peak, rain pouring down, lightning striking in the distance, cold blue and grey color palette, dramatic contrast.',
-    'Volcanic Gates': 'Underground cavern, flowing lava rivers in background, dark rock, ambient orange and red lighting, embers floating in the air.',
+    'Volcanic Gates': 'Underground cavern, flowing lava rivers in background, dark rock, ambient orange and red lighting, embers floating in the air.'
 };
 
 export const generateSpartanAvatar = async (
@@ -373,7 +393,6 @@ export const generateSpartanAvatar = async (
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
-    // Resolve rich descriptions (Fallback to default if key missing)
     const armorPrompt = ARMOR_DESCRIPTIONS[armorStyle] || ARMOR_DESCRIPTIONS['Classic Bronze'];
     const bgPrompt = BACKGROUND_DESCRIPTIONS[backgroundStyle] || BACKGROUND_DESCRIPTIONS['Ancient Battlefield'];
 
@@ -388,18 +407,18 @@ export const generateSpartanAvatar = async (
       STYLE: 8k resolution, Octane Render, Heroic, Cinematic.
     `;
 
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const response: GenerateContentResponse = await retryOperation(() => ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           { inlineData: { data: imageBase64, mimeType: 'image/jpeg' } },
-          { text: prompt },
-        ],
+          { text: prompt }
+        ]
       },
       config: {
           imageConfig: { aspectRatio: "1:1" }
       }
-    });
+    }));
 
     const candidates = response.candidates;
     if (candidates && candidates.length > 0 && candidates[0].content && candidates[0].content.parts) {

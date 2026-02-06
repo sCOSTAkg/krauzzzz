@@ -118,7 +118,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // --- COURSE MANAGEMENT ---
   const renderCourse = () => {
-      // ... (Keep existing helpers: addNewModule, updateModule, deleteModule, saveLesson, createLesson, deleteLesson)
       const addNewModule = () => {
           const newMod: Module = {
               id: `mod-${Date.now()}`,
@@ -408,9 +407,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // --- SYSTEM (CONFIG + NOTIFICATIONS) ---
   const renderSettings = () => {
-      // Safe access to nested properties
+      // Safe access to nested properties to prevent crash
       const maintenanceMode = config?.features?.maintenanceMode || false;
-      const appName = config?.appName || '';
+      const appName = config?.appName || 'SalesPro';
 
       const [notifTitle, setNotifTitle] = useState('');
       const [notifMsg, setNotifMsg] = useState('');
@@ -520,11 +519,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           { id: 'OPENROUTER', name: 'OpenRouter', icon: '🌐' },
       ];
 
+      // Safe access to AI config
+      const aiConfig = config?.aiConfig || { activeProvider: 'GOOGLE_GEMINI', apiKeys: {}, modelOverrides: {} };
+
       const updateAIConfig = (key: string, value: any) => {
           onUpdateConfig({
               ...config,
               aiConfig: {
-                  ...config.aiConfig,
+                  ...aiConfig,
                   [key]: value
               }
           });
@@ -535,8 +537,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
            onUpdateConfig({
               ...config,
               aiConfig: {
-                  ...config.aiConfig,
-                  apiKeys: { ...config.aiConfig.apiKeys, [field]: val }
+                  ...aiConfig,
+                  apiKeys: { ...aiConfig.apiKeys, [field]: val }
               }
           });
       };
@@ -551,7 +553,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <p className="text-xs text-slate-400 mt-1">Центр управления языковыми моделями.</p>
                   </div>
                   <div className="px-3 py-1 bg-[#6C5DD3] rounded-lg text-white text-[10px] font-black uppercase tracking-widest">
-                      {config.aiConfig.activeProvider}
+                      {aiConfig.activeProvider}
                   </div>
               </div>
           </div>
@@ -566,7 +568,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               key={p.id}
                               onClick={() => updateAIConfig('activeProvider', p.id)}
                               className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
-                                  config.aiConfig.activeProvider === p.id 
+                                  aiConfig.activeProvider === p.id 
                                   ? 'bg-[#6C5DD3]/10 border-[#6C5DD3] text-[#6C5DD3]' 
                                   : 'bg-transparent border-slate-200 dark:border-white/10 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'
                               }`}
@@ -575,7 +577,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <span className="text-xl">{p.icon}</span>
                                   <span className="text-xs font-bold uppercase">{p.name}</span>
                               </div>
-                              {config.aiConfig.activeProvider === p.id && <div className="w-2 h-2 rounded-full bg-[#6C5DD3]"></div>}
+                              {aiConfig.activeProvider === p.id && <div className="w-2 h-2 rounded-full bg-[#6C5DD3]"></div>}
                           </button>
                       ))}
                   </div>
@@ -585,60 +587,60 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-white dark:bg-[#14161B] p-5 rounded-[2rem] border border-slate-200 dark:border-white/5">
                   <h3 className="font-bold text-slate-900 dark:text-white mb-4 uppercase text-xs tracking-widest">API Ключи</h3>
                   <div className="space-y-3">
-                      {config.aiConfig.activeProvider === 'GOOGLE_GEMINI' && (
+                      {aiConfig.activeProvider === 'GOOGLE_GEMINI' && (
                           <div>
                               <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Google AI Key</label>
                               <input 
                                 type="password" 
-                                value={config.aiConfig.apiKeys.google || ''} 
+                                value={aiConfig.apiKeys?.google || ''} 
                                 onChange={e => setKey('google', e.target.value)}
                                 className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                                 placeholder="AIza..."
                               />
                           </div>
                       )}
-                      {config.aiConfig.activeProvider === 'OPENAI_GPT4' && (
+                      {aiConfig.activeProvider === 'OPENAI_GPT4' && (
                           <div>
                               <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">OpenAI Key</label>
                               <input 
                                 type="password" 
-                                value={config.aiConfig.apiKeys.openai || ''} 
+                                value={aiConfig.apiKeys?.openai || ''} 
                                 onChange={e => setKey('openai', e.target.value)}
                                 className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                                 placeholder="sk-..."
                               />
                           </div>
                       )}
-                      {config.aiConfig.activeProvider === 'ANTHROPIC_CLAUDE' && (
+                      {aiConfig.activeProvider === 'ANTHROPIC_CLAUDE' && (
                           <div>
                               <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Anthropic Key</label>
                               <input 
                                 type="password" 
-                                value={config.aiConfig.apiKeys.anthropic || ''} 
+                                value={aiConfig.apiKeys?.anthropic || ''} 
                                 onChange={e => setKey('anthropic', e.target.value)}
                                 className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                                 placeholder="sk-ant..."
                               />
                           </div>
                       )}
-                      {config.aiConfig.activeProvider === 'GROQ' && (
+                      {aiConfig.activeProvider === 'GROQ' && (
                           <div>
                               <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Groq Key</label>
                               <input 
                                 type="password" 
-                                value={config.aiConfig.apiKeys.groq || ''} 
+                                value={aiConfig.apiKeys?.groq || ''} 
                                 onChange={e => setKey('groq', e.target.value)}
                                 className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                                 placeholder="gsk_..."
                               />
                           </div>
                       )}
-                      {config.aiConfig.activeProvider === 'OPENROUTER' && (
+                      {aiConfig.activeProvider === 'OPENROUTER' && (
                           <div>
                               <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">OpenRouter Key</label>
                               <input 
                                 type="password" 
-                                value={config.aiConfig.apiKeys.openrouter || ''} 
+                                value={aiConfig.apiKeys?.openrouter || ''} 
                                 onChange={e => setKey('openrouter', e.target.value)}
                                 className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                                 placeholder="sk-or..."
@@ -655,8 +657,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div>
                       <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Chat Model ID</label>
                       <input 
-                        value={config.aiConfig.modelOverrides.chat || ''} 
-                        onChange={e => onUpdateConfig({...config, aiConfig: {...config.aiConfig, modelOverrides: {...config.aiConfig.modelOverrides, chat: e.target.value}}})}
+                        value={aiConfig.modelOverrides?.chat || ''} 
+                        onChange={e => onUpdateConfig({...config, aiConfig: {...aiConfig, modelOverrides: {...aiConfig.modelOverrides, chat: e.target.value}}})}
                         className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                         placeholder="e.g. gpt-4o, claude-3-opus"
                       />
@@ -664,8 +666,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div>
                       <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">Vision Model ID</label>
                       <input 
-                        value={config.aiConfig.modelOverrides.vision || ''} 
-                        onChange={e => onUpdateConfig({...config, aiConfig: {...config.aiConfig, modelOverrides: {...config.aiConfig.modelOverrides, vision: e.target.value}}})}
+                        value={aiConfig.modelOverrides?.vision || ''} 
+                        onChange={e => onUpdateConfig({...config, aiConfig: {...aiConfig, modelOverrides: {...aiConfig.modelOverrides, vision: e.target.value}}})}
                         className="w-full bg-slate-100 dark:bg-black/20 p-3 rounded-xl text-xs font-mono outline-none border border-transparent focus:border-[#6C5DD3]"
                         placeholder="e.g. gpt-4-vision"
                       />
@@ -680,16 +682,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="space-y-4 animate-fade-in pb-20">
           <div className="bg-[#14161B] p-6 rounded-[2rem] border border-white/5">
               <h2 className="text-xl font-black text-white mb-2">БАЗА ДАННЫХ</h2>
-              <p className="text-xs text-slate-400 mb-4">Текущее подключение и статистика.</p>
+              <p className="text-xs text-slate-400 mb-4">Статус подключения к NeonDB.</p>
               
               <div className="bg-black/30 p-4 rounded-xl font-mono text-[10px] text-green-400 mb-4 overflow-x-auto">
-                  STATUS: CONNECTED (LOCAL SYNC)<br/>
-                  RECORDS: {users.length} USERS<br/>
-                  MODULES: {modules.length}<br/>
-                  LAST SYNC: {new Date().toLocaleTimeString()}
+                  STATUS: CONFIG LOADED<br/>
+                  TYPE: NEON POSTGRESQL<br/>
+                  CONNECTION: {process.env.DATABASE_URL ? 'SECURE_LINK_PRESENT' : 'MISSING'}<br/>
+                  SYNC MODE: BROWSER_MOCK (Client-Side Only)<br/>
               </div>
+              
+              <p className="text-[10px] text-slate-500 mb-4">
+                  Note: Direct SQL connection from browser is restricted by security policies. 
+                  The app is using the provided connection string for configuration purposes, 
+                  but strictly running in Local Storage mode for this demo environment.
+              </p>
 
-              <Button fullWidth onClick={() => addToast('info', 'Бэкап создан локально')}>Создать Бэкап (JSON)</Button>
+              <Button fullWidth onClick={() => addToast('info', 'Конфигурация сохранена')}>Обновить статус</Button>
           </div>
       </div>
   );

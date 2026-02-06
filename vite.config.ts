@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
     define: {
       // Map environment variables
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      'process.env.DATABASE_URL': JSON.stringify(env.DATABASE_URL),
+      // Hardcoded Neon DB URL as requested for immediate connection
+      'process.env.DATABASE_URL': JSON.stringify("postgresql://neondb_owner:npg_8gtkumX3BAex@ep-raspy-salad-aiz5pncb-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"),
       
       // Fallback object for other process.env calls
       'process.env': {}

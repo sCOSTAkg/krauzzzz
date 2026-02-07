@@ -67,7 +67,8 @@ const parseTimestamp = (time: string) => {
 
 // Regex to find timestamps like 00:00 or 00:00:00 and convert to links
 const linkifyTimestamps = (text: string) => {
-    return text.replace(/(\d{1,2}:\d{2}(?::\d{2})?)/g, (match) => {
+    // Matches HH:MM:SS or MM:SS surrounded by non-word chars or start/end of line
+    return text.replace(/\b(\d{1,2}:\d{2}(?::\d{2})?)\b/g, (match) => {
         const seconds = parseTimestamp(match);
         return `[${match}](timestamp:${seconds})`;
     });
@@ -119,7 +120,7 @@ export const LessonView: React.FC<LessonViewProps> = ({
           setIsPlaying(true);
           prevLessonIdRef.current = lesson.id;
       } else {
-          // On initial mount or same lesson, keep default (false)
+          // On initial mount or same lesson, keep default (false) or user's previous state
           setIsPlaying(false);
       }
 

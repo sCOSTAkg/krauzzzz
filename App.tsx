@@ -19,6 +19,59 @@ import { ModuleList } from './components/ModuleList';
 import { Backend } from './services/backendService';
 import { XPService } from './services/xpService';
 
+// ❌ ERROR BOUNDARY - Ловит ошибки рендеринга
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('❌ Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-body text-text-primary p-6">
+          <div className="max-w-md w-full bg-surface rounded-3xl p-8 border border-border-color">
+            <div className="text-6xl mb-4 text-center">⚠️</div>
+            <h1 className="text-2xl font-black mb-4 text-center">Произошла ошибка</h1>
+            <p className="text-text-secondary mb-6 text-center">
+              Что-то пошло не так. Попробуйте перезагрузить страницу.
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full bg-primary text-white py-3 rounded-2xl font-bold"
+            >
+              Перезагрузить
+            </button>
+            {this.state.error && (
+              <details className="mt-4 text-xs text-text-secondary">
+                <summary className="cursor-pointer">Детали ошибки</summary>
+                <pre className="mt-2 p-2 bg-body rounded overflow-auto">
+                  {this.state.error.toString()}
+                </pre>
+              </details>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+
+
 const DEFAULT_CONFIG: AppConfig = {
   appName: 'SalesPro: 300 Spartans',
   appDescription: 'Elite Sales Academy',
@@ -292,7 +345,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden relative">
+    <ErrorBoundary>
+      <div className="flex flex-col h-[100dvh] bg-body text-text-primary transition-colors duration-300 overflow-hidden relative">
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
           <video 
               autoPlay 
@@ -455,6 +509,7 @@ const App: React.FC = () => {
         action={navAction} 
       />
     </div>
+    </ErrorBoundary>
   );
 };
 

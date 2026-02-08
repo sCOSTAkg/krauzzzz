@@ -29,14 +29,34 @@ class BackendService {
       this.channel.postMessage({ type: 'SYNC_UPDATE', timestamp: Date.now() });
   }
 
+  // --- CACHE MANAGEMENT ---
+
+  clearAllCache() {
+      Logger.log('🧹 Clearing all cache...');
+
+      // Clear Airtable service cache
+      airtable.clearCache();
+
+      // Clear LocalStorage cache (keep user data)
+      Storage.remove('courseModules');
+      Storage.remove('materials');
+      Storage.remove('streams');
+      Storage.remove('events');
+      Storage.remove('scenarios');
+      Storage.remove('local_notifications');
+
+      Logger.log('✅ All cache cleared');
+      this.notifySync();
+  }
+
   // --- USER SYNC ---
 
   async syncUser(localUser: UserProgress): Promise<UserProgress> {
     try {
-        const synced = await airtable.syncUserProgress(localUser);
-        if (synced && JSON.stringify(synced) !== JSON.stringify(localUser)) {
-             this.saveUserLocal(synced);
-             return synced;
+        const success = await airtable.syncUserProgress(localUser);
+        if (success) {
+            Logger.log('✅ User synced successfully');
+            return localUser;
         }
         return localUser;
     } catch (e) {
@@ -48,11 +68,15 @@ class BackendService {
   async saveUser(user: UserProgress) {
       const updatedUser = { ...user, lastSyncTimestamp: Date.now() };
       this.saveUserLocal(updatedUser);
-      airtable.syncUserProgress(updatedUser).then(success => {
+
+      // Background sync to Airtable
+      airtable.syncUserProgress(updatedUser)
+        .then(success => {
           if (success) {
-              Logger.log('User synced to Airtable');
+              Logger.log('✅ User synced to Airtable');
           }
-      }).catch(e => Logger.error("BG Sync Error", e));
+        })
+        .catch(e => Logger.error("BG Sync Error", e));
   }
 
   private saveUserLocal(user: UserProgress) {
@@ -69,13 +93,7 @@ class BackendService {
   // --- CONFIG SYNC ---
 
   async fetchGlobalConfig(defaultConfig: AppConfig): Promise<AppConfig> {
-      try {
-          // Config can be fetched from Storage for now
-          return Storage.get('appConfig', defaultConfig);
-      } catch (e) {
-          Logger.warn('Config fetch failed');
-      }
-      return defaultConfig;
+      return Storage.get('appConfig', defaultConfig);
   }
 
   async saveGlobalConfig(config: AppConfig) {
@@ -83,47 +101,50 @@ class BackendService {
       this.notifySync();
   }
 
-  // --- CONTENT SYNC (READ) ---
+  // --- CONTENT SYNC (READ) - OPTIMIZED ---
 
   async fetchAllContent() {
-      // Parallel fetch from Airtable
       try {
           Logger.log('🔄 Fetching all content from Airtable...');
+          const startTime = Date.now();
 
+          // Parallel fetch from Airtable
           const [mods, mats, strs] = await Promise.all([
-              airtable.fetchModules(),      // ✅ FIXED: use correct method name
-              airtable.fetchMaterials(),    // ✅ FIXED
-              airtable.fetchStreams()       // ✅ FIXED
+              airtable.fetchModules(),
+              airtable.fetchMaterials(),
+              airtable.fetchStreams()
           ]);
 
-          Logger.log(`✅ Loaded: ${mods.length} modules, ${mats.length} materials, ${strs.length} streams`);
+          const loadTime = Date.now() - startTime;
+          Logger.log(`✅ Content loaded in ${loadTime}ms: ${mods.length} modules, ${mats.length} materials, ${strs.length} streams`);
 
-          // Prefer Airtable data if available, otherwise fallback to LocalStorage, then Constants
+          // Log module details
+          mods.forEach(mod => {
+              const lessonCount = mod.lessons?.length || 0;
+              const status = lessonCount > 0 ? '✅' : '⚠️';
+              Logger.log(`  ${status} ${mod.title}: ${lessonCount} уроков`);
+          });
+
+          // Prefer Airtable data, fallback to cache, then constants
           const content = {
               modules: mods.length > 0 ? mods : Storage.get('courseModules', COURSE_MODULES),
               materials: mats.length > 0 ? mats : Storage.get('materials', MOCK_MATERIALS),
               streams: strs.length > 0 ? strs : Storage.get('streams', MOCK_STREAMS),
-              events: Storage.get('events', MOCK_EVENTS),  // Use local for now
-              scenarios: Storage.get('scenarios', SCENARIOS), // Use local for now
+              events: Storage.get('events', MOCK_EVENTS),
+              scenarios: Storage.get('scenarios', SCENARIOS),
           };
 
-          // Log module details
-          content.modules.forEach(mod => {
-              Logger.log(`  📚 Module: ${mod.title} (${mod.lessons?.length || 0} lessons)`);
-          });
-
-          // Cache everything locally
+          // Cache locally for offline access
           Storage.set('courseModules', content.modules);
           Storage.set('materials', content.materials);
           Storage.set('streams', content.streams);
-          Storage.set('events', content.events);
-          Storage.set('scenarios', content.scenarios);
 
           this.notifySync();
           return content;
 
       } catch (e) {
-          Logger.error('❌ Airtable Content Sync failed', e);
+          Logger.error('❌ Airtable fetch failed, using cached data', e);
+
           // Fallback to cached data
           return {
               modules: Storage.get('courseModules', COURSE_MODULES),
@@ -138,7 +159,6 @@ class BackendService {
   // --- CONTENT SYNC (WRITE) ---
 
   async saveCollection<T extends { id: string }>(table: ContentTable, items: T[]) {
-      // 1. Update LocalStorage immediately for UI responsiveness
       const storageKeyMap: Partial<Record<ContentTable, string>> = {
           'modules': 'courseModules',
           'materials': 'materials',
@@ -147,15 +167,13 @@ class BackendService {
           'scenarios': 'scenarios',
           'notifications': 'local_notifications'
       };
+
       const key = storageKeyMap[table];
       if (key) {
           Storage.set(key, items);
           this.notifySync();
           Logger.log(`💾 Saved ${items.length} ${table} to local storage`);
       }
-
-      // 2. Push to Airtable (to be implemented when needed)
-      // For now just save locally
   }
 
   // --- NOTIFICATIONS ---

@@ -1,23 +1,77 @@
 
-import { AppConfig, UserProgress, Module, Lesson, Material, Stream, CalendarEvent, ArenaScenario, AppNotification } from '../types';
+import { UserProgress, Module, Lesson, Material, Stream, CalendarEvent, ArenaScenario, AppNotification } from '../types';
 import { Logger } from './logger';
-import { Storage } from './storage';
 
 // Configuration
 const DEFAULT_PAT = process.env.AIRTABLE_PAT || 'YOUR_AIRTABLE_PAT_TOKEN';
 const DEFAULT_BASE_ID = 'appNbjsegO01M8Y36';
 
+// Airtable field IDs for type-safe access
+const FIELD_IDS = {
+  modules: {
+    id: 'fldXrKwChjJD4OqP7',
+    title: 'fldIfN4rMfFjIKvbd',
+    description: 'fldWqrXsxCmtqWWCf',
+    category: 'fld3Z0ZI3pkSED9Ki',
+    minLevel: 'fldtttFZcTLAFPJux',
+    imageUrl: 'fld7nqcBw4LuRQdK1',
+    videoUrl: 'fldp5cG4Dq3B5URjL',
+    lessons2: 'fldtTLcstPo6J7g2c',
+    image: 'fld6M7GkK3OaCLk5g',
+    video: 'fldhJBQLxP55HO2Vy'
+  },
+  lessons: {
+    id: 'fldyPMVyiTawKKRUH',
+    title: 'fld397SIjkomraTdb',
+    description: 'fld4DsUNddjyMGge4',
+    content: 'fldgUG51LV5SbUJOO',
+    xpReward: 'fldt83CLSrIAFBSwd',
+    videoUrl: 'fldzyITATdXow7YFt',
+    homeworkType: 'fldqC0NSBhD6rKibz',
+    homeworkTask: 'fldVtHqaSds9a9y3J',
+    aiGradingInstruction: 'fldU8FWWkWD7hClIx',
+    module: 'fldJ8kmNEfzhTDmkw',
+    order: 'fld1Zh7UKN6A6EMdA'
+  },
+  users: {
+    telegramId: 'fldconLB26cmAGdcf',
+    name: 'fldIsK1eUao1QcVg6',
+    role: 'fldGbfhpB0SKtIEVK',
+    xp: 'fld0cjpMOJjbQKPhi',
+    level: 'fld2uQNqIXSHeVjaT',
+    data: 'fld1IGydhxt91GkYB',
+    lastSync: 'fldXjmnJFQQ1isAVq'
+  }
+};
+
 class AirtableService {
   private baseUrl = 'https://api.airtable.com/v0';
   private baseId: string;
   private pat: string;
+  private cache: Map<string, { data: any; timestamp: number }> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
   constructor() {
     this.baseId = DEFAULT_BASE_ID;
     this.pat = DEFAULT_PAT;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  // Clear cache manually
+  clearCache() {
+    this.cache.clear();
+    Logger.log('🧹 Airtable cache cleared');
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}, useCache = false): Promise<T> {
+    // Check cache
+    if (useCache && this.cache.has(endpoint)) {
+      const cached = this.cache.get(endpoint)!;
+      if (Date.now() - cached.timestamp < this.CACHE_TTL) {
+        Logger.log(`📦 Using cached data for ${endpoint}`);
+        return cached.data;
+      }
+    }
+
     const url = `${this.baseUrl}/${this.baseId}/${endpoint}`;
     const headers = {
       'Authorization': `Bearer ${this.pat}`,
@@ -31,48 +85,58 @@ class AirtableService {
         const errorText = await response.text();
         throw new Error(`Airtable API error: ${response.status} - ${errorText}`);
       }
-      return await response.json();
+      const data = await response.json();
+
+      // Cache the response
+      if (useCache) {
+        this.cache.set(endpoint, { data, timestamp: Date.now() });
+      }
+
+      return data;
     } catch (error) {
       Logger.error('Airtable request failed', error);
       throw error;
     }
   }
 
-  // Fetch all modules with lessons from Airtable
+  // Fetch all modules with lessons - OPTIMIZED
   async fetchModules(): Promise<Module[]> {
     try {
-      Logger.log('Fetching modules and lessons from Airtable...');
+      Logger.log('🔄 Fetching modules with lessons from Airtable...');
+      const startTime = Date.now();
 
-      // Fetch all lessons first
-      const lessonsResponse = await this.request<{ records: any[] }>(
-        'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc'
-      );
+      // Fetch modules and lessons in parallel
+      const [modulesResponse, lessonsResponse] = await Promise.all([
+        this.request<{ records: any[] }>('Modules', {}, true),
+        this.request<{ records: any[] }>(
+          'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc',
+          {},
+          true
+        )
+      ]);
 
-      Logger.log(`Loaded ${lessonsResponse.records.length} lessons from Airtable`);
+      Logger.log(`✅ Loaded ${modulesResponse.records.length} modules, ${lessonsResponse.records.length} lessons in ${Date.now() - startTime}ms`);
 
-      // Create a map: Module Airtable Record ID -> Lessons
+      // Create lessons map by Airtable Record ID
       const lessonsMap = new Map<string, Lesson[]>();
 
       lessonsResponse.records.forEach(lessonRecord => {
         const fields = lessonRecord.fields;
 
-        // Create lesson object
         const lesson: Lesson = {
           id: String(fields.id || lessonRecord.id),
           title: fields.title || 'Урок без названия',
           description: fields.description || '',
           content: fields.content || '',
-          xpReward: fields.xpReward || 100,
+          xpReward: Number(fields.xpReward) || 100,
           homeworkType: (fields.homeworkType || 'TEXT') as any,
           homeworkTask: fields.homeworkTask || '',
           aiGradingInstruction: fields.aiGradingInstruction || '',
           videoUrl: fields.videoUrl || ''
         };
 
-        // Get module links (these are Airtable record IDs like "recXXXXX")
+        // Get module record IDs
         const moduleLinks = fields.Module || [];
-
-        // Add this lesson to all its linked modules
         moduleLinks.forEach((moduleRecordId: string) => {
           if (!lessonsMap.has(moduleRecordId)) {
             lessonsMap.set(moduleRecordId, []);
@@ -81,66 +145,88 @@ class AirtableService {
         });
       });
 
-      Logger.log(`Grouped lessons into ${lessonsMap.size} module groups`);
+      Logger.log(`📚 Grouped lessons into ${lessonsMap.size} modules`);
 
-      // Now fetch modules
-      const modulesResponse = await this.request<{ records: any[] }>('Modules');
-      Logger.log(`Loaded ${modulesResponse.records.length} modules from Airtable`);
+      // Build modules with lessons
+      const modules: Module[] = [];
+      const seenTitles = new Set<string>();
 
-      const modules: Module[] = modulesResponse.records.map(moduleRecord => {
+      modulesResponse.records.forEach(moduleRecord => {
         const fields = moduleRecord.fields;
-        const airtableRecordId = moduleRecord.id; // This is like "rec7BXKrGzAVDGKBM"
+        const airtableRecordId = moduleRecord.id;
 
-        // Get lessons for this module using its Airtable record ID
-        const moduleLessons = lessonsMap.get(airtableRecordId) || [];
+        // Get lessons using "Lessons 2" field first (more reliable), then fallback to Module link
+        let moduleLessons = lessonsMap.get(airtableRecordId) || [];
+
+        // If no lessons found via Module link, try Lessons 2 field
+        if (moduleLessons.length === 0) {
+          const lessons2Field = fields['Lessons 2'] || [];
+          if (lessons2Field.length > 0) {
+            // Fetch these lessons by their record IDs
+            lessons2Field.forEach((lessonRecordId: string) => {
+              const lessonRecord = lessonsResponse.records.find(l => l.id === lessonRecordId);
+              if (lessonRecord) {
+                const lFields = lessonRecord.fields;
+                moduleLessons.push({
+                  id: String(lFields.id || lessonRecordId),
+                  title: lFields.title || 'Урок',
+                  description: lFields.description || '',
+                  content: lFields.content || '',
+                  xpReward: Number(lFields.xpReward) || 100,
+                  homeworkType: (lFields.homeworkType || 'TEXT') as any,
+                  homeworkTask: lFields.homeworkTask || '',
+                  aiGradingInstruction: lFields.aiGradingInstruction || '',
+                  videoUrl: lFields.videoUrl || ''
+                });
+              }
+            });
+          }
+        }
 
         const module: Module = {
           id: String(fields.id || airtableRecordId),
-          title: fields.title || 'Модуль без названия',
+          title: fields.title || 'Модуль',
           description: fields.description || '',
           category: this.mapCategory(fields.category),
-          minLevel: fields.minLevel || 1,
+          minLevel: Number(fields.minLevel) || 1,
           imageUrl: fields.imageUrl || this.getImageFromAttachments(fields.image),
           videoUrl: fields.videoUrl || this.getVideoFromAttachments(fields.video),
-          pdfUrl: fields.pdfUrl || '',
-          lessons: moduleLessons.sort((a, b) => {
-            // Sort lessons by order if available
-            return 0; // Keep original order from Airtable sort
-          })
+          pdfUrl: '',
+          lessons: moduleLessons
         };
 
-        Logger.log(`Module "${module.title}" has ${moduleLessons.length} lessons`);
-        return module;
+        // Avoid duplicates by title
+        if (!seenTitles.has(module.title)) {
+          seenTitles.add(module.title);
+          modules.push(module);
+          Logger.log(`  📚 ${module.title}: ${moduleLessons.length} уроков`);
+        }
       });
 
-      // Filter out duplicate modules (keep only those with lessons or unique titles)
-      const uniqueModules = modules.filter((mod, index, self) => {
-        // Keep if has lessons
-        if (mod.lessons && mod.lessons.length > 0) return true;
-        // Or if it's the first occurrence of this title
-        return index === self.findIndex(m => m.title === mod.title);
-      });
+      Logger.log(`✅ Returning ${modules.length} unique modules`);
+      return modules;
 
-      Logger.log(`Returning ${uniqueModules.length} unique modules`);
-      return uniqueModules;
     } catch (error) {
-      Logger.error('Failed to fetch modules with lessons', error);
+      Logger.error('❌ Failed to fetch modules', error);
       return [];
     }
   }
 
-  // Fetch all lessons
+  // Fetch lessons only
   async fetchLessons(): Promise<Lesson[]> {
     try {
       const data = await this.request<{ records: any[] }>(
-        'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc'
+        'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc',
+        {},
+        true
       );
+
       return data.records.map(record => ({
         id: String(record.fields.id || record.id),
-        title: record.fields.title || 'Урок без названия',
+        title: record.fields.title || 'Урок',
         description: record.fields.description || '',
         content: record.fields.content || '',
-        xpReward: record.fields.xpReward || 100,
+        xpReward: Number(record.fields.xpReward) || 100,
         homeworkType: (record.fields.homeworkType || 'TEXT') as any,
         homeworkTask: record.fields.homeworkTask || '',
         aiGradingInstruction: record.fields.aiGradingInstruction || '',
@@ -152,90 +238,10 @@ class AirtableService {
     }
   }
 
-  // Sync user progress to Airtable
-  async syncUserProgress(user: UserProgress): Promise<boolean> {
-    try {
-      const checkData = await this.request<{ records: any[] }>(
-        `Users?filterByFormula={TelegramId}="${user.telegramId || user.id}"`
-      );
-
-      const userData = {
-        TelegramId: user.telegramId || user.id || '',
-        Name: user.name,
-        Role: user.role,
-        XP: user.xp,
-        Level: user.level,
-        Data: JSON.stringify({
-          completedLessonIds: user.completedLessonIds,
-          submittedHomeworks: user.submittedHomeworks,
-          chatHistory: user.chatHistory,
-          notebook: user.notebook,
-          habits: user.habits,
-          goals: user.goals
-        }),
-        LastSync: Date.now()
-      };
-
-      if (checkData.records.length > 0) {
-        const recordId = checkData.records[0].id;
-        await this.request(`Users/${recordId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ fields: userData })
-        });
-      } else {
-        await this.request('Users', {
-          method: 'POST',
-          body: JSON.stringify({ fields: userData })
-        });
-      }
-
-      Logger.log('User synced to Airtable', user.telegramId);
-      return true;
-    } catch (error) {
-      Logger.error('Failed to sync user', error);
-      return false;
-    }
-  }
-
-  // Load user progress from Airtable
-  async loadUserProgress(telegramId: string): Promise<UserProgress | null> {
-    try {
-      const data = await this.request<{ records: any[] }>(
-        `Users?filterByFormula={TelegramId}="${telegramId}"`
-      );
-
-      if (data.records.length === 0) return null;
-
-      const record = data.records[0];
-      const fields = record.fields;
-      const parsedData = fields.Data ? JSON.parse(fields.Data) : {};
-
-      return {
-        ...Storage.getDefaultUserProgress(),
-        telegramId: fields.TelegramId,
-        name: fields.Name || 'User',
-        role: fields.Role || 'STUDENT',
-        xp: fields.XP || 0,
-        level: fields.Level || 1,
-        completedLessonIds: parsedData.completedLessonIds || [],
-        submittedHomeworks: parsedData.submittedHomeworks || [],
-        chatHistory: parsedData.chatHistory || [],
-        notebook: parsedData.notebook || [],
-        habits: parsedData.habits || [],
-        goals: parsedData.goals || [],
-        airtableRecordId: record.id,
-        lastSyncTimestamp: fields.LastSync || Date.now()
-      };
-    } catch (error) {
-      Logger.error('Failed to load user from Airtable', error);
-      return null;
-    }
-  }
-
-  // Fetch materials
+  // Fetch materials - OPTIMIZED
   async fetchMaterials(): Promise<Material[]> {
     try {
-      const data = await this.request<{ records: any[] }>('Materials');
+      const data = await this.request<{ records: any[] }>('Materials', {}, true);
       return data.records.map(record => ({
         id: String(record.fields.id || record.id),
         title: record.fields.title || '',
@@ -249,10 +255,10 @@ class AirtableService {
     }
   }
 
-  // Fetch streams
+  // Fetch streams - OPTIMIZED
   async fetchStreams(): Promise<Stream[]> {
     try {
-      const data = await this.request<{ records: any[] }>('Streams');
+      const data = await this.request<{ records: any[] }>('Streams', {}, true);
       return data.records.map(record => ({
         id: String(record.fields.id || record.id),
         title: record.fields.title || '',
@@ -263,6 +269,106 @@ class AirtableService {
     } catch (error) {
       Logger.error('Failed to fetch streams', error);
       return [];
+    }
+  }
+
+  // Sync user progress - OPTIMIZED
+  async syncUserProgress(user: UserProgress): Promise<boolean> {
+    try {
+      const telegramId = user.telegramId || user.id || '';
+      if (!telegramId) {
+        Logger.warn('No telegramId for user sync');
+        return false;
+      }
+
+      // Check if user exists
+      const checkUrl = `Users?filterByFormula={TelegramId}="${telegramId}"`;
+      const checkData = await this.request<{ records: any[] }>(checkUrl);
+
+      const userData = {
+        TelegramId: telegramId,
+        Name: user.name,
+        Role: user.role,
+        XP: user.xp,
+        Level: user.level,
+        Data: JSON.stringify({
+          completedLessonIds: user.completedLessonIds,
+          submittedHomeworks: user.submittedHomeworks,
+          chatHistory: user.chatHistory,
+          notebook: user.notebook,
+          habits: user.habits,
+          goals: user.goals,
+          theme: user.theme,
+          notifications: user.notifications
+        }),
+        LastSync: Date.now()
+      };
+
+      if (checkData.records.length > 0) {
+        // Update existing
+        const recordId = checkData.records[0].id;
+        await this.request(`Users/${recordId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ fields: userData })
+        });
+        Logger.log('✅ User updated in Airtable');
+      } else {
+        // Create new
+        await this.request('Users', {
+          method: 'POST',
+          body: JSON.stringify({ fields: userData })
+        });
+        Logger.log('✅ New user created in Airtable');
+      }
+
+      return true;
+    } catch (error) {
+      Logger.error('Failed to sync user', error);
+      return false;
+    }
+  }
+
+  // Load user progress
+  async loadUserProgress(telegramId: string): Promise<UserProgress | null> {
+    try {
+      const data = await this.request<{ records: any[] }>(
+        `Users?filterByFormula={TelegramId}="${telegramId}"`
+      );
+
+      if (data.records.length === 0) return null;
+
+      const record = data.records[0];
+      const fields = record.fields;
+      const parsedData = fields.Data ? JSON.parse(fields.Data) : {};
+
+      return {
+        id: fields.TelegramId,
+        telegramId: fields.TelegramId,
+        name: fields.Name || 'User',
+        role: fields.Role || 'STUDENT',
+        isAuthenticated: true,
+        xp: Number(fields.XP) || 0,
+        level: Number(fields.Level) || 1,
+        completedLessonIds: parsedData.completedLessonIds || [],
+        submittedHomeworks: parsedData.submittedHomeworks || [],
+        chatHistory: parsedData.chatHistory || [],
+        notebook: parsedData.notebook || [],
+        habits: parsedData.habits || [],
+        goals: parsedData.goals || [],
+        theme: parsedData.theme || 'LIGHT',
+        notifications: parsedData.notifications || {
+          pushEnabled: false,
+          telegramSync: false,
+          deadlineReminders: false,
+          chatNotifications: false
+        },
+        airtableRecordId: record.id,
+        lastSyncTimestamp: Number(fields.LastSync) || Date.now(),
+        registrationDate: record.createdTime
+      } as UserProgress;
+    } catch (error) {
+      Logger.error('Failed to load user from Airtable', error);
+      return null;
     }
   }
 

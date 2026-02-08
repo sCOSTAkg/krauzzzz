@@ -1,4 +1,3 @@
-
 import { AppConfig, UserProgress, Module, Lesson, Material, Stream, CalendarEvent, ArenaScenario, AppNotification } from '../types';
 import { Logger } from './logger';
 import { Storage } from './storage';
@@ -221,4 +220,6 @@ class AirtableService {
   }
 }
 
+// Export both for backward compatibility
 export const airtableService = new AirtableService();
+export const airtable = airtableService;  // Alias for backward compatibility

@@ -3,12 +3,9 @@ import { AppConfig, UserProgress, Module, Lesson, Material, Stream, CalendarEven
 import { Logger } from './logger';
 import { Storage } from './storage';
 
-// Configuration - replace with your actual credentials
+// Configuration
 const DEFAULT_PAT = process.env.AIRTABLE_PAT || 'YOUR_AIRTABLE_PAT_TOKEN';
 const DEFAULT_BASE_ID = 'appNbjsegO01M8Y36';
-
-// Helper types matching your Airtable table names
-type TableName = 'Users' | 'Modules' | 'Lessons' | 'Materials' | 'Streams' | 'Events' | 'Scenarios' | 'Notifications';
 
 class AirtableService {
   private baseUrl = 'https://api.airtable.com/v0';
@@ -31,7 +28,8 @@ class AirtableService {
     try {
       const response = await fetch(url, { ...options, headers });
       if (!response.ok) {
-        throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Airtable API error: ${response.status} - ${errorText}`);
       }
       return await response.json();
     } catch (error) {
@@ -43,62 +41,100 @@ class AirtableService {
   // Fetch all modules with lessons from Airtable
   async fetchModules(): Promise<Module[]> {
     try {
-      // First fetch all lessons
-      const lessonsData = await this.request<{ records: any[] }>('Lessons?sort[0][field]=order&sort[0][direction]=asc');
+      Logger.log('Fetching modules and lessons from Airtable...');
+
+      // Fetch all lessons first
+      const lessonsResponse = await this.request<{ records: any[] }>(
+        'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc'
+      );
+
+      Logger.log(`Loaded ${lessonsResponse.records.length} lessons from Airtable`);
+
+      // Create a map: Module Airtable Record ID -> Lessons
       const lessonsMap = new Map<string, Lesson[]>();
 
-      // Group lessons by module
-      lessonsData.records.forEach(record => {
+      lessonsResponse.records.forEach(lessonRecord => {
+        const fields = lessonRecord.fields;
+
+        // Create lesson object
         const lesson: Lesson = {
-          id: String(record.fields.id || record.id),
-          title: record.fields.title || 'Урок без названия',
-          description: record.fields.description || '',
-          content: record.fields.content || '',
-          xpReward: record.fields.xpReward || 100,
-          homeworkType: (record.fields.homeworkType || 'TEXT') as any,
-          homeworkTask: record.fields.homeworkTask || '',
-          aiGradingInstruction: record.fields.aiGradingInstruction || '',
-          videoUrl: record.fields.videoUrl || ''
+          id: String(fields.id || lessonRecord.id),
+          title: fields.title || 'Урок без названия',
+          description: fields.description || '',
+          content: fields.content || '',
+          xpReward: fields.xpReward || 100,
+          homeworkType: (fields.homeworkType || 'TEXT') as any,
+          homeworkTask: fields.homeworkTask || '',
+          aiGradingInstruction: fields.aiGradingInstruction || '',
+          videoUrl: fields.videoUrl || ''
         };
 
-        // Get module links from the lesson
-        const moduleLinks = record.fields.Module || [];
-        moduleLinks.forEach((moduleId: string) => {
-          if (!lessonsMap.has(moduleId)) {
-            lessonsMap.set(moduleId, []);
+        // Get module links (these are Airtable record IDs like "recXXXXX")
+        const moduleLinks = fields.Module || [];
+
+        // Add this lesson to all its linked modules
+        moduleLinks.forEach((moduleRecordId: string) => {
+          if (!lessonsMap.has(moduleRecordId)) {
+            lessonsMap.set(moduleRecordId, []);
           }
-          lessonsMap.get(moduleId)!.push(lesson);
+          lessonsMap.get(moduleRecordId)!.push(lesson);
         });
       });
 
-      // Now fetch modules and attach lessons
-      const modulesData = await this.request<{ records: any[] }>('Modules');
-      return modulesData.records.map(record => {
-        const moduleId = record.id;
-        const moduleLessons = lessonsMap.get(moduleId) || [];
+      Logger.log(`Grouped lessons into ${lessonsMap.size} module groups`);
 
-        return {
-          id: String(record.fields.id || record.id),
-          title: record.fields.title || 'Модуль без названия',
-          description: record.fields.description || '',
-          category: this.mapCategory(record.fields.category),
-          minLevel: record.fields.minLevel || 1,
-          imageUrl: record.fields.imageUrl || this.getImageFromAttachments(record.fields.image),
-          videoUrl: record.fields.videoUrl || this.getVideoFromAttachments(record.fields.video),
-          pdfUrl: '',
-          lessons: moduleLessons
+      // Now fetch modules
+      const modulesResponse = await this.request<{ records: any[] }>('Modules');
+      Logger.log(`Loaded ${modulesResponse.records.length} modules from Airtable`);
+
+      const modules: Module[] = modulesResponse.records.map(moduleRecord => {
+        const fields = moduleRecord.fields;
+        const airtableRecordId = moduleRecord.id; // This is like "rec7BXKrGzAVDGKBM"
+
+        // Get lessons for this module using its Airtable record ID
+        const moduleLessons = lessonsMap.get(airtableRecordId) || [];
+
+        const module: Module = {
+          id: String(fields.id || airtableRecordId),
+          title: fields.title || 'Модуль без названия',
+          description: fields.description || '',
+          category: this.mapCategory(fields.category),
+          minLevel: fields.minLevel || 1,
+          imageUrl: fields.imageUrl || this.getImageFromAttachments(fields.image),
+          videoUrl: fields.videoUrl || this.getVideoFromAttachments(fields.video),
+          pdfUrl: fields.pdfUrl || '',
+          lessons: moduleLessons.sort((a, b) => {
+            // Sort lessons by order if available
+            return 0; // Keep original order from Airtable sort
+          })
         };
+
+        Logger.log(`Module "${module.title}" has ${moduleLessons.length} lessons`);
+        return module;
       });
+
+      // Filter out duplicate modules (keep only those with lessons or unique titles)
+      const uniqueModules = modules.filter((mod, index, self) => {
+        // Keep if has lessons
+        if (mod.lessons && mod.lessons.length > 0) return true;
+        // Or if it's the first occurrence of this title
+        return index === self.findIndex(m => m.title === mod.title);
+      });
+
+      Logger.log(`Returning ${uniqueModules.length} unique modules`);
+      return uniqueModules;
     } catch (error) {
       Logger.error('Failed to fetch modules with lessons', error);
       return [];
     }
   }
 
-  // Fetch all lessons from Airtable
+  // Fetch all lessons
   async fetchLessons(): Promise<Lesson[]> {
     try {
-      const data = await this.request<{ records: any[] }>('Lessons?sort[0][field]=order&sort[0][direction]=asc');
+      const data = await this.request<{ records: any[] }>(
+        'Lessons?sort%5B0%5D%5Bfield%5D=order&sort%5B0%5D%5Bdirection%5D=asc'
+      );
       return data.records.map(record => ({
         id: String(record.fields.id || record.id),
         title: record.fields.title || 'Урок без названия',
@@ -116,50 +152,15 @@ class AirtableService {
     }
   }
 
-  // Fetch materials
-  async fetchMaterials(): Promise<Material[]> {
-    try {
-      const data = await this.request<{ records: any[] }>('Materials');
-      return data.records.map(record => ({
-        id: String(record.fields.id || record.id),
-        title: record.fields.title || '',
-        description: record.fields.description || '',
-        type: (record.fields.type || 'LINK') as any,
-        url: record.fields.url || ''
-      }));
-    } catch (error) {
-      Logger.error('Failed to fetch materials', error);
-      return [];
-    }
-  }
-
-  // Fetch streams
-  async fetchStreams(): Promise<Stream[]> {
-    try {
-      const data = await this.request<{ records: any[] }>('Streams');
-      return data.records.map(record => ({
-        id: String(record.fields.id || record.id),
-        title: record.fields.title || '',
-        date: record.fields.date || new Date().toISOString(),
-        youtubeUrl: record.fields.youtubeUrl || '',
-        status: (record.fields.status || 'UPCOMING') as any
-      }));
-    } catch (error) {
-      Logger.error('Failed to fetch streams', error);
-      return [];
-    }
-  }
-
   // Sync user progress to Airtable
   async syncUserProgress(user: UserProgress): Promise<boolean> {
     try {
-      // First check if user exists
       const checkData = await this.request<{ records: any[] }>(
-        `Users?filterByFormula={TelegramId}="${user.telegramId}"`
+        `Users?filterByFormula={TelegramId}="${user.telegramId || user.id}"`
       );
 
       const userData = {
-        TelegramId: user.telegramId,
+        TelegramId: user.telegramId || user.id || '',
         Name: user.name,
         Role: user.role,
         XP: user.xp,
@@ -176,14 +177,12 @@ class AirtableService {
       };
 
       if (checkData.records.length > 0) {
-        // Update existing
         const recordId = checkData.records[0].id;
         await this.request(`Users/${recordId}`, {
           method: 'PATCH',
           body: JSON.stringify({ fields: userData })
         });
       } else {
-        // Create new
         await this.request('Users', {
           method: 'POST',
           body: JSON.stringify({ fields: userData })
@@ -233,13 +232,48 @@ class AirtableService {
     }
   }
 
+  // Fetch materials
+  async fetchMaterials(): Promise<Material[]> {
+    try {
+      const data = await this.request<{ records: any[] }>('Materials');
+      return data.records.map(record => ({
+        id: String(record.fields.id || record.id),
+        title: record.fields.title || '',
+        description: record.fields.description || '',
+        type: (record.fields.type || 'LINK') as any,
+        url: record.fields.url || ''
+      }));
+    } catch (error) {
+      Logger.error('Failed to fetch materials', error);
+      return [];
+    }
+  }
+
+  // Fetch streams
+  async fetchStreams(): Promise<Stream[]> {
+    try {
+      const data = await this.request<{ records: any[] }>('Streams');
+      return data.records.map(record => ({
+        id: String(record.fields.id || record.id),
+        title: record.fields.title || '',
+        date: record.fields.date || new Date().toISOString(),
+        youtubeUrl: record.fields.youtubeUrl || '',
+        status: (record.fields.status || 'UPCOMING') as any
+      }));
+    } catch (error) {
+      Logger.error('Failed to fetch streams', error);
+      return [];
+    }
+  }
+
   // Helper methods
   private mapCategory(airtableCategory: string): any {
     const mapping: Record<string, string> = {
       'Модуль 1': 'GENERAL',
       'Модуль 2': 'SALES',
       'Модуль 3': 'PSYCHOLOGY',
-      'Модуль 4': 'TACTICS'
+      'Модуль 4': 'TACTICS',
+      'Модуль 5': 'GENERAL'
     };
     return mapping[airtableCategory] || 'GENERAL';
   }

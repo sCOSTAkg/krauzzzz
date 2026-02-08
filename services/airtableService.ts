@@ -3,7 +3,7 @@ import { UserProgress, Module, Lesson, Material, Stream, CalendarEvent, ArenaSce
 import { Logger } from './logger';
 
 // Configuration
-const DEFAULT_PAT = process.env.AIRTABLE_PAT || 'YOUR_AIRTABLE_PAT_TOKEN';
+const DEFAULT_PAT = import.meta.env.VITE_AIRTABLE_PAT || 'YOUR_AIRTABLE_PAT_TOKEN';
 const DEFAULT_BASE_ID = 'appNbjsegO01M8Y36';
 
 // Airtable field IDs for type-safe access
